@@ -1,0 +1,75 @@
+import type { PageType } from './types';
+import { LOT_DETAIL, queryWithFallback } from './dom-selectors';
+import { injectLotDetailTotal, updateLotDetailTotal, setupModalObserver } from './lot-detail-injector';
+import { injectListingTotals, updateListingTotals } from './listing-injector';
+import {
+  setupPriceObserver,
+  setupListingObserver,
+  setupNavigationObserver,
+  setupObserverHealthCheck,
+} from './mutation-observer';
+import { EXT_ATTR } from './styles';
+
+let activeObservers: MutationObserver[] = [];
+let activeIntervals: number[] = [];
+let reinitializing = false;
+
+function detectPageType(url: string): PageType {
+  if (/\/[a-z]{2}\/l\/\d+/.test(url)) return 'lot-detail';
+  if (/\/[a-z]{2}\/c\/\d+/.test(url) || /\/[a-z]{2}\/search/.test(url)) return 'listing';
+  return 'unknown';
+}
+
+function cleanupAll(): void {
+  activeObservers.forEach((obs) => obs.disconnect());
+  activeObservers = [];
+  activeIntervals.forEach((id) => clearInterval(id));
+  activeIntervals = [];
+  document.querySelectorAll(`[${EXT_ATTR}]`).forEach((el) => el.remove());
+}
+
+function init(): void {
+  try {
+    const pageType = detectPageType(window.location.href);
+
+    if (pageType === 'lot-detail') {
+      injectLotDetailTotal();
+
+      // Watch for bid confirmation modal appearing
+      const modalObs = setupModalObserver();
+      activeObservers.push(modalObs);
+
+      const bidSection = queryWithFallback(LOT_DETAIL.BID_SECTION);
+      // Observe the parent bidding panel (covers bid section + quick bid buttons + other siblings)
+      const observeTarget = bidSection?.parentElement ?? bidSection;
+      if (observeTarget) {
+        const obs = setupPriceObserver(observeTarget, () => updateLotDetailTotal());
+        activeObservers.push(obs);
+
+        const healthId = setupObserverHealthCheck(observeTarget, () => {
+          if (reinitializing) return;
+          reinitializing = true;
+          cleanupAll();
+          init();
+          reinitializing = false;
+        });
+        activeIntervals.push(healthId);
+      }
+    } else if (pageType === 'listing') {
+      injectListingTotals();
+      const obs = setupListingObserver(() => updateListingTotals());
+      activeObservers.push(obs);
+    }
+  } catch (e) {
+    console.warn('[Catawiki Price Ext] Error during init:', e);
+  }
+}
+
+// Initial run
+init();
+
+// SPA navigation — set up ONCE globally, survives cleanupAll()
+setupNavigationObserver(() => {
+  cleanupAll();
+  init();
+});

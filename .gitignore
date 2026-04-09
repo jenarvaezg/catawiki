@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.omc/
+.playwright-mcp/
+
+# Test artifacts
+*.png
+state/
