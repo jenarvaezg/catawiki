@@ -4,9 +4,13 @@ import { cpSync, mkdirSync } from 'fs';
 const isWatch = process.argv.includes('--watch');
 
 const buildOptions = {
-  entryPoints: ['src/content/main.ts'],
+  entryPoints: {
+    content: 'src/content/main.ts',
+    background: 'src/background.ts',
+  },
   bundle: true,
-  outfile: 'dist/content.js',
+  outdir: 'dist',
+  entryNames: '[name]',
   format: 'iife',
   platform: 'browser',
   target: 'es2022',

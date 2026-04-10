@@ -43,11 +43,13 @@ export function setupPriceObserver(
 
 export function setupListingObserver(
   callback: () => void,
+  target: Element = document.querySelector('[data-testid="lots-grid"]') ?? document.body,
 ): MutationObserver {
-  const target =
-    document.querySelector('[data-testid="lots-grid"]') ?? document.body;
   const debouncedCallback = debounce(callback, 500);
-  const observer = new MutationObserver(debouncedCallback);
+  const observer = new MutationObserver((mutations) => {
+    if (isOwnMutation(mutations)) return;
+    debouncedCallback();
+  });
   observer.observe(target, {
     childList: true,
     subtree: true,

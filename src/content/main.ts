@@ -1,7 +1,8 @@
-import type { PageType } from './types';
 import { LOT_DETAIL, queryWithFallback } from './dom-selectors';
 import { injectLotDetailTotal, updateLotDetailTotal, setupModalObserver } from './lot-detail-injector';
+import { injectLotDetailMarketWidget } from './lot-market-injector';
 import { injectListingTotals, updateListingTotals } from './listing-injector';
+import { detectPageType } from './page-type';
 import {
   setupPriceObserver,
   setupListingObserver,
@@ -13,12 +14,6 @@ import { EXT_ATTR } from './styles';
 let activeObservers: MutationObserver[] = [];
 let activeIntervals: number[] = [];
 let reinitializing = false;
-
-function detectPageType(url: string): PageType {
-  if (/\/[a-z]{2}\/l\/\d+/.test(url)) return 'lot-detail';
-  if (/\/[a-z]{2}\/c\/\d+/.test(url) || /\/[a-z]{2}\/search/.test(url)) return 'listing';
-  return 'unknown';
-}
 
 function cleanupAll(): void {
   activeObservers.forEach((obs) => obs.disconnect());
@@ -34,16 +29,25 @@ function init(): void {
 
     if (pageType === 'lot-detail') {
       injectLotDetailTotal();
+      injectLotDetailMarketWidget();
+      injectListingTotals();
 
       // Watch for bid confirmation modal appearing
       const modalObs = setupModalObserver();
       activeObservers.push(modalObs);
 
+      const relatedCardsObserver = setupListingObserver(() => updateListingTotals(), document.body);
+      activeObservers.push(relatedCardsObserver);
+
       const bidSection = queryWithFallback(LOT_DETAIL.BID_SECTION);
       // Observe the parent bidding panel (covers bid section + quick bid buttons + other siblings)
       const observeTarget = bidSection?.parentElement ?? bidSection;
       if (observeTarget) {
-        const obs = setupPriceObserver(observeTarget, () => updateLotDetailTotal());
+        const obs = setupPriceObserver(observeTarget, () => {
+          updateLotDetailTotal();
+          injectLotDetailMarketWidget();
+          updateListingTotals();
+        });
         activeObservers.push(obs);
 
         const healthId = setupObserverHealthCheck(observeTarget, () => {

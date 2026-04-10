@@ -36,22 +36,29 @@ export const LOT_DETAIL = {
 export const LISTING = {
   LOTS_GRID: {
     primary: '[data-testid="lots-grid"]',
-    fallbacks: [] as string[],
+    fallbacks: ['main [role="list"]', 'main ul', 'main ol'] as string[],
   } satisfies SelectorConfig,
 
   LOT_CARD: {
     primary: 'article.c-lot-card__container',
-    fallbacks: [] as string[],
+    fallbacks: [
+      'a[href*="/l/"] > article',
+      'a[href*="view_lot="] > article',
+    ] as string[],
   } satisfies SelectorConfig,
 
   CARD_STATUS: {
     primary: '.c-lot-card__status-text',
-    fallbacks: [] as string[],
+    fallbacks: [
+      'p:nth-of-type(2)',
+    ] as string[],
   } satisfies SelectorConfig,
 
   CARD_PRICE: {
     primary: '.c-lot-card__price',
-    fallbacks: [] as string[],
+    fallbacks: [
+      'p:nth-of-type(2) + *',
+    ] as string[],
   } satisfies SelectorConfig,
 } as const;
 
@@ -74,6 +81,20 @@ export function queryWithFallback(
 
 export function queryAllCards(
   root: Element | Document = document,
-): NodeListOf<Element> {
-  return root.querySelectorAll(LISTING.LOT_CARD.primary);
+): Element[] {
+  const seen = new Set<Element>();
+  const cards: Element[] = [];
+
+  const selectors = [LISTING.LOT_CARD.primary, ...LISTING.LOT_CARD.fallbacks];
+  for (const selector of selectors) {
+    const matches = root.querySelectorAll(selector);
+    matches.forEach((el) => {
+      if (!seen.has(el)) {
+        seen.add(el);
+        cards.push(el);
+      }
+    });
+  }
+
+  return cards;
 }

@@ -35,12 +35,61 @@ export const BREAKDOWN_STYLES: Record<string, string> = {
   marginTop: '2px',
 };
 
+export const ACTION_BUTTON_STYLES: Record<string, string> = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '6px',
+  marginTop: '8px',
+  padding: '8px 12px',
+  border: '1px solid #0033FF',
+  borderRadius: '999px',
+  backgroundColor: '#FFFFFF',
+  color: '#0033FF',
+  fontSize: '12px',
+  fontWeight: '700',
+  cursor: 'pointer',
+};
+
+export const SECONDARY_META_STYLES: Record<string, string> = {
+  display: 'block',
+  fontSize: '11px',
+  color: '#666',
+  marginTop: '6px',
+};
+
+export const LINK_STYLES: Record<string, string> = {
+  color: '#0033FF',
+  textDecoration: 'none',
+  fontWeight: '700',
+};
+
 export const CARD_TOTAL_STYLES: Record<string, string> = {
   display: 'block',
-  fontSize: '12px',
+  marginTop: '4px',
+  lineHeight: '1.25',
+};
+
+export const CARD_TOTAL_LABEL_STYLES: Record<string, string> = {
+  display: 'block',
+  fontSize: '11px',
   color: '#666',
-  marginTop: '2px',
   fontWeight: 'normal',
+};
+
+export const CARD_TOTAL_AMOUNT_STYLES: Record<string, string> = {
+  display: 'block',
+  fontSize: '14px',
+  color: '#1A1A1A',
+  fontWeight: '700',
+  marginTop: '1px',
+};
+
+export const CARD_TOTAL_BREAKDOWN_STYLES: Record<string, string> = {
+  display: 'block',
+  fontSize: '11px',
+  color: '#888',
+  marginTop: '2px',
 };
 
 export const QUICK_BID_TOTAL_STYLES: Record<string, string> = {

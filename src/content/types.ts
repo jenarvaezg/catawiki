@@ -20,4 +20,4 @@ export interface SelectorConfig {
 
 export type PageType = 'lot-detail' | 'listing' | 'unknown';
 
-export type CardStatus = 'active' | 'starting' | 'buy-now' | 'final' | 'closed' | 'unknown';
+export type CardStatus = 'current' | 'starting' | 'buy-now' | 'final' | 'closed' | 'unknown';
