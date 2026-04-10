@@ -142,20 +142,22 @@ function injectQuickBidTotals(
 }
 
 function findBidInputs(): HTMLInputElement[] {
-  // Primary: known input names
+  // Primary: known input names (current + legacy)
   const byName = document.querySelectorAll<HTMLInputElement>(
-    'input[name="directBid"], input[name="maxBid"]',
+    'input[name="bid"], input[name="directBid"], input[name="maxBid"]',
   );
   if (byName.length > 0) return Array.from(byName);
 
-  // Fallback: number/text inputs inside bid-related containers
+  // Fallback: numeric inputs near the bid section
   const bidSection = queryWithFallback(LOT_DETAIL.BID_SECTION);
   if (!bidSection) return [];
 
+  // Search in the parent panel (bid inputs may be siblings of the bid status section)
+  const searchRoot = bidSection.parentElement ?? bidSection;
+
   return Array.from(
-    bidSection.querySelectorAll<HTMLInputElement>('input[type="number"], input[type="text"], input[inputmode="numeric"]'),
+    searchRoot.querySelectorAll<HTMLInputElement>('input[inputmode="numeric"], input[type="number"]'),
   ).filter((input) => {
-    // Skip search fields and other unrelated inputs
     const name = input.name.toLowerCase();
     return !name.includes('search') && !name.includes('email');
   });
