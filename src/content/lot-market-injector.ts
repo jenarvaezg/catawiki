@@ -1,5 +1,5 @@
-import { LOT_DETAIL, queryWithFallback } from './dom-selectors';
-import { detectLocale, getLabel } from './i18n';
+import type { Platform } from '../platforms/platform';
+import { getLabel } from './i18n';
 import {
   ACTION_BUTTON_STYLES,
   BREAKDOWN_STYLES,
@@ -44,31 +44,7 @@ function runtimeSendMessage<T>(message: unknown): Promise<T> {
   });
 }
 
-function findLotTitle(): string {
-  const h1 = document.querySelector('h1')?.textContent?.trim();
-  if (h1) return h1;
-
-  const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content')?.trim();
-  if (ogTitle) return ogTitle;
-
-  const slug = window.location.pathname.split('/').at(-1) ?? '';
-  return slug.replace(/^\d+-/, '').replace(/-/g, ' ').trim() || document.title.trim();
-}
-
-function findLotContextText(): string {
-  const main = document.querySelector('main');
-  const source = main?.textContent ?? document.body.textContent ?? '';
-  const normalized = source.replace(/\s+/g, ' ').trim();
-  if (normalized === '') return '';
-
-  return normalized
-    .split(/\b(?:Otros objetos|Artículos similares|También te pueden gustar|Te puede interesar|You may also like|Similar items|Andere objecten|Autres objets|Andere Artikel)\b/i)[0]
-    ?.trim() ?? normalized;
-}
-
-function getInsertionAnchor(): Element | null {
-  return document.querySelector(`[${EXT_ATTR}="total-price"]`) ?? queryWithFallback(LOT_DETAIL.BID_SECTION);
-}
+// Title, context text, and insertion anchor are now provided by the Platform adapter.
 
 function formatMoney(amount: number, currency: string, locale: string, maxFractionDigits = 2): string {
   try {
@@ -517,10 +493,12 @@ async function promptAndStoreApiKey(locale: string, invalidKey = false): Promise
 
 async function resolveNumistaValue(
   locale: string,
+  title: string,
+  contextText: string,
   forceRefresh: boolean,
   preferredTypeId: number | null = null,
 ): Promise<NumistaMarketResult | null> {
-  const metadata = buildLotSearchMetadata(window.location.href, findLotTitle(), locale, findLotContextText());
+  const metadata = buildLotSearchMetadata(window.location.href, title, locale, contextText);
   let response = await runtimeSendMessage<ResolveNumistaMarketResponse>({
     type: 'resolve-numista-market',
     metadata,
@@ -551,8 +529,8 @@ async function resolveNumistaValue(
   return response.result;
 }
 
-async function resolveBullionValue(locale: string, forceRefresh: boolean): Promise<BullionResolutionResult> {
-  const metadata = buildLotSearchMetadata(window.location.href, findLotTitle(), locale, findLotContextText());
+async function resolveBullionValue(locale: string, title: string, contextText: string, forceRefresh: boolean): Promise<BullionResolutionResult> {
+  const metadata = buildLotSearchMetadata(window.location.href, title, locale, contextText);
   const response = await runtimeSendMessage<ResolveBullionValueResponse>({
     type: 'resolve-bullion-value',
     metadata,
@@ -569,6 +547,8 @@ async function resolveBullionValue(locale: string, forceRefresh: boolean): Promi
 async function loadBullionWidget(
   widget: ReturnType<typeof createBullionWidget>,
   locale: string,
+  title: string,
+  contextText: string,
   forceRefresh = false,
 ): Promise<void> {
   widget.amount.textContent = getLabel('bullion_loading', locale);
@@ -576,7 +556,7 @@ async function loadBullionWidget(
   widget.meta.textContent = '';
 
   try {
-    const result = await resolveBullionValue(locale, forceRefresh);
+    const result = await resolveBullionValue(locale, title, contextText, forceRefresh);
     renderBullionResult(widget, result, locale);
   } catch (error) {
     widget.amount.textContent = getLabel('bullion_error', locale);
@@ -585,14 +565,17 @@ async function loadBullionWidget(
   }
 }
 
-export function injectLotDetailMarketWidget(): void {
+export function injectLotDetailMarketWidget(platform: Platform): void {
   if (document.querySelector(`[${EXT_ATTR}="bullion-market"]`) || document.querySelector(`[${EXT_ATTR}="numista-market"]`)) {
     return;
   }
 
-  const locale = detectLocale();
-  const anchor = getInsertionAnchor();
+  const locale = platform.detectLocale();
+  const anchor = platform.getDetailInjectionAnchor();
   if (!anchor) return;
+
+  const productTitle = platform.findProductTitle();
+  const productContextText = platform.findProductContextText();
 
   const bullionWidget = createBullionWidget(locale);
   bindBullionInput(bullionWidget, locale);
@@ -601,7 +584,7 @@ export function injectLotDetailMarketWidget(): void {
   const numistaWidget = createNumistaWidget(locale);
   bullionWidget.root.after(numistaWidget.root);
 
-  void loadBullionWidget(bullionWidget, locale, false);
+  void loadBullionWidget(bullionWidget, locale, productTitle, productContextText, false);
 
   const loadAndRenderNumista = async (
     forceRefresh: boolean,
@@ -617,7 +600,7 @@ export function injectLotDetailMarketWidget(): void {
     numistaWidget.alternatives.innerHTML = '';
 
     try {
-      const result = await resolveNumistaValue(locale, forceRefresh, preferredTypeId);
+      const result = await resolveNumistaValue(locale, productTitle, productContextText, forceRefresh, preferredTypeId);
       if (!result) {
         numistaWidget.button.disabled = false;
         numistaWidget.details.style.display = 'none';

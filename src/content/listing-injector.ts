@@ -1,12 +1,9 @@
-import { LISTING, queryAllCards, queryWithFallback } from './dom-selectors';
-import { parseCurrencyAmount } from './currency-parser';
+import type { Platform, CardContext } from '../platforms/platform';
 import { getIgnoredLotIds, ignoreLot, shouldHideIgnoredLot } from './ignored-lots';
 import { getListingFilters, shouldHideByListingFilters, type ListingFilters } from './listing-filters';
 import { calculateTotal, formatCurrency } from './price-calculator';
-import { getCardStatus, detectLocale, getLabel } from './i18n';
+import { getLabel } from './i18n';
 import { resolveLotCostDetails } from './lot-cost-resolver';
-import { getTargetBidAmount } from './bid-increments';
-import { getCanonicalLotUrl, getLotIdFromUrl } from './lot-url';
 import type { ResolveBullionValueResponse } from '../shared/messages';
 import { buildDirectBullionBasis, buildLotSearchMetadata, buildMarketCacheFingerprint } from '../shared/numista';
 import {
@@ -18,19 +15,7 @@ import {
   applyStyles,
   createExtElement,
 } from './styles';
-import type { CardStatus, ParsedCurrency, PriceBreakdown } from './types';
-
-type BiddableCardStatus = Extract<CardStatus, 'current' | 'starting' | 'buy-now'>;
-
-interface ListingCardContext {
-  readonly priceEl: Element;
-  readonly parsedPrice: ParsedCurrency;
-  readonly targetBidAmount: number;
-  readonly status: BiddableCardStatus;
-  readonly lotId: string | null;
-  readonly lotUrl: string | null;
-  readonly shippingHint: number | null;
-}
+import type { CardStatus, PriceBreakdown } from './types';
 
 interface CardTotalElements {
   readonly root: HTMLElement;
@@ -40,12 +25,6 @@ interface CardTotalElements {
   readonly badge: HTMLElement;
 }
 
-interface CardLotIdentity {
-  readonly lotId: string | null;
-  readonly lotUrl: string | null;
-}
-
-const NO_RESERVE_RE = /\b(?:sin precio de reserva|zonder minimumprijs|zonder reserveprijs|without reserve price|no reserve price|sans prix de réserve)\b/i;
 const CARD_IGNORE_BUTTON_STYLES: Record<string, string> = {
   position: 'absolute',
   top: '10px',
@@ -66,8 +45,9 @@ const CARD_IGNORE_BUTTON_STYLES: Record<string, string> = {
   boxShadow: '0 2px 6px rgba(0, 0, 0, 0.12)',
 };
 
-const CARD_SELECTORS = [LISTING.LOT_CARD.primary, ...LISTING.LOT_CARD.fallbacks];
 const bullionBadgeCache = new Map<string, Promise<ResolveBullionValueResponse['result'] | null>>();
+
+// --- Helpers ---
 
 function runtimeSendMessage<T>(message: unknown): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -89,72 +69,51 @@ function runtimeSendMessage<T>(message: unknown): Promise<T> {
   });
 }
 
-function findCardStatusEl(card: Element): Element | null {
-  const bySelector = queryWithFallback(LISTING.CARD_STATUS, card);
-  if (bySelector) {
-    const statusText = bySelector.textContent?.trim() ?? '';
-    if (statusText !== '') return bySelector;
+function getCardProductUrl(card: Element, platform: Platform): string | null {
+  const candidates = [
+    card instanceof HTMLAnchorElement ? card : null,
+    card.closest<HTMLAnchorElement>('a[href]'),
+    card.querySelector<HTMLAnchorElement>('a[href]'),
+  ];
+
+  for (const link of candidates) {
+    if (!link?.href) continue;
+    const canonical = platform.getCanonicalProductUrl(link.href);
+    if (canonical) return canonical;
   }
-
-  return Array.from(card.querySelectorAll('p, span, div'))
-    .find((el) => /\b(current bid|starting bid|buy now|puja actual|puja inicial|comprar ahora)\b/i.test(el.textContent ?? ''))
-    ?? null;
+  return null;
 }
 
-function findCardPriceEl(card: Element): Element | null {
-  const bySelector = queryWithFallback(LISTING.CARD_PRICE, card);
-  if (bySelector && parseCurrencyAmount(bySelector.textContent ?? '') !== null) {
-    return bySelector;
-  }
-
-  return Array.from(card.querySelectorAll('p, span, div'))
-    .find((el) => parseCurrencyAmount(el.textContent ?? '') !== null)
-    ?? null;
+function getCardProductId(card: Element, platform: Platform): string | null {
+  const url = getCardProductUrl(card, platform);
+  return url ? platform.extractProductId(url) : null;
 }
 
-function resolveCardStatus(card: Element, locale: string): CardStatus {
-  const statusEl = findCardStatusEl(card);
-  const statusText = statusEl?.textContent?.trim() ?? '';
-
-  if (statusText === '') return 'unknown';
-
-  const resolved = getCardStatus(locale, statusText);
-  return resolved === 'unknown' ? 'current' : resolved;
-}
-
-function isBiddableStatus(status: CardStatus): status is BiddableCardStatus {
-  return status === 'current' || status === 'starting' || status === 'buy-now';
-}
-
-function getCardLotUrl(card: Element): string | null {
-  const link =
-    card.closest<HTMLAnchorElement>('a[href*="/l/"], a[href*="view_lot="]')
-    ?? card.querySelector<HTMLAnchorElement>('a[href*="/l/"], a[href*="view_lot="]');
-  if (!link?.href) return null;
-  return getCanonicalLotUrl(link.href);
-}
-
-function getCardLotIdentity(card: Element): CardLotIdentity {
-  const lotUrl = getCardLotUrl(card);
-  return {
-    lotId: lotUrl ? getLotIdFromUrl(lotUrl) : null,
-    lotUrl,
-  };
-}
-
-function getCardTitle(card: Element, lotId: string | null): string {
-  const titleCandidates = [
+function getFallbackTitle(card: Element, productId: string | null): string {
+  const candidates = [
     card.querySelector<HTMLElement>('img[alt]')?.getAttribute('alt'),
     card.querySelector<HTMLElement>('[class*="title"]')?.textContent,
     card.querySelector<HTMLElement>('h2, h3, h4')?.textContent,
-    card.querySelector<HTMLAnchorElement>('a[href*="/l/"], a[href*="view_lot="]')?.getAttribute('aria-label'),
   ];
 
-  const title = titleCandidates
-    .map((value) => value?.trim() ?? '')
-    .find((value) => value !== '');
+  const title = candidates
+    .map((v) => v?.trim() ?? '')
+    .find((v) => v !== '');
 
-  return title ?? (lotId ? `Lot ${lotId}` : 'Ignored lot');
+  return title ?? (productId ? `Item ${productId}` : 'Ignored item');
+}
+
+function formatMoney(amount: number, currency: string, locale: string): string {
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${currency} ${amount.toFixed(2)}`;
+  }
 }
 
 function formatPercentDelta(value: number, locale: string): string {
@@ -183,13 +142,12 @@ function updateBullionBadge(
 }
 
 async function resolveCardBullionValue(
-  card: Element,
+  title: string,
   locale: string,
-  lotUrl: string | null,
+  productUrl: string | null,
 ): Promise<number | null> {
-  const title = getCardTitle(card, getCardLotIdentity(card).lotId);
   const metadata = buildLotSearchMetadata(
-    lotUrl ?? window.location.href,
+    productUrl ?? window.location.href,
     title,
     locale,
   );
@@ -217,7 +175,7 @@ async function resolveCardBullionValue(
     })
     .catch((error) => {
       bullionBadgeCache.delete(cacheKey);
-      console.warn('[Catawiki Price Ext] Failed to resolve bullion badge:', error);
+      console.warn('[CoinScope Ext] Failed to resolve bullion badge:', error);
       return null;
     });
 
@@ -226,16 +184,9 @@ async function resolveCardBullionValue(
   return result?.status === 'ok' && result.estimate ? result.estimate.totalValue : null;
 }
 
-function hasFreeShippingBadge(card: Element, locale: string): boolean {
-  const cardText = card.textContent?.toLowerCase() ?? '';
-  return cardText.includes(getLabel('free_shipping', locale).toLowerCase());
-}
+// --- UI Builders ---
 
-function hasNoReserveBadge(card: Element): boolean {
-  return NO_RESERVE_RE.test(card.textContent ?? '');
-}
-
-function buildCardTotal(locale: string, status: BiddableCardStatus): CardTotalElements {
+function buildCardTotal(locale: string, status: CardStatus): CardTotalElements {
   const root = createExtElement('div', 'card-total');
   applyStyles(root, CARD_TOTAL_STYLES);
 
@@ -270,66 +221,53 @@ function buildCardTotal(locale: string, status: BiddableCardStatus): CardTotalEl
 }
 
 function formatCardBreakdown(breakdown: PriceBreakdown, symbol: string, locale: string): string {
-  const commissionText = `${getLabel('commission', locale)}: ${formatCurrency(breakdown.commission, symbol, locale)}`;
+  const parts: string[] = [];
 
-  let shippingText: string;
-  if (breakdown.isPartial) {
-    shippingText = getLabel('excl_shipping', locale);
-  } else if (breakdown.shipping === 0) {
-    shippingText = getLabel('free_shipping', locale);
-  } else {
-    shippingText = `${getLabel('shipping', locale)}: ${formatCurrency(breakdown.shipping, symbol, locale)}`;
+  // Only show commission if there is one (Wallapop has none)
+  if (breakdown.commission > 0) {
+    parts.push(`${getLabel('commission', locale)}: ${formatCurrency(breakdown.commission, symbol, locale)}`);
   }
 
-  return `${commissionText} · ${shippingText}`;
+  if (breakdown.isPartial) {
+    parts.push(getLabel('excl_shipping', locale));
+  } else if (breakdown.shipping === 0) {
+    parts.push(getLabel('free_shipping', locale));
+  } else {
+    parts.push(`${getLabel('shipping', locale)}: ${formatCurrency(breakdown.shipping, symbol, locale)}`);
+  }
+
+  return parts.join(' · ');
 }
 
-function buildCardContext(card: Element, locale: string): ListingCardContext | null {
-  const status = resolveCardStatus(card, locale);
-  if (!isBiddableStatus(status)) return null;
-
-  const priceEl = findCardPriceEl(card);
-  if (!priceEl?.textContent) return null;
-
-  const parsedPrice = parseCurrencyAmount(priceEl.textContent);
-  if (!parsedPrice) return null;
-
-  const identity = getCardLotIdentity(card);
-
-  return {
-    priceEl,
-    parsedPrice,
-    targetBidAmount: getTargetBidAmount(status, parsedPrice.amount),
-    status,
-    lotId: identity.lotId,
-    lotUrl: identity.lotUrl,
-    shippingHint: hasFreeShippingBadge(card, locale) ? 0 : null,
-  };
-}
+// --- Card total population ---
 
 async function populateCardTotal(
   card: Element,
   totalEl: CardTotalElements,
-  context: ListingCardContext,
+  context: CardContext,
   locale: string,
   filters: ListingFilters,
+  platform: Platform,
 ): Promise<void> {
   let shippingCost = context.shippingHint;
-  let commissionConfig;
+  let commissionConfig = context.commissionHint
+    ?? platform.getCommissionForPrice?.(context.targetPrice)
+    ?? platform.defaultCommissionConfig;
 
-  if (context.lotUrl) {
+  if (context.productUrl) {
     try {
-      const details = await resolveLotCostDetails(context.lotUrl);
+      const extractFn = (html: string) => platform.extractCostFromHtml(html);
+      const details = await resolveLotCostDetails(context.productUrl, extractFn);
       shippingCost = details.shippingCost ?? shippingCost;
-      commissionConfig = details.commissionConfig;
+      commissionConfig = details.commissionConfig ?? commissionConfig;
     } catch (error) {
-      console.warn('[Catawiki Price Ext] Failed to resolve lot costs for listing card:', context.lotUrl, error);
+      console.warn('[CoinScope Ext] Failed to resolve costs for listing card:', context.productUrl, error);
     }
   }
 
-  const breakdown = calculateTotal(context.targetBidAmount, shippingCost, commissionConfig);
-  totalEl.amount.textContent = formatCurrency(breakdown.total, context.parsedPrice.symbol, locale);
-  totalEl.breakdown.textContent = formatCardBreakdown(breakdown, context.parsedPrice.symbol, locale);
+  const breakdown = calculateTotal(context.targetPrice, shippingCost, commissionConfig);
+  totalEl.amount.textContent = formatCurrency(breakdown.total, context.price.symbol, locale);
+  totalEl.breakdown.textContent = formatCardBreakdown(breakdown, context.price.symbol, locale);
   totalEl.badge.style.display = 'none';
 
   if (card instanceof HTMLElement) {
@@ -340,40 +278,20 @@ async function populateCardTotal(
       delete card.dataset.catawikiExtShipping;
     }
     card.dataset.catawikiExtPartial = String(breakdown.isPartial);
-    applyListingFiltersToCard(card, filters);
+    applyListingFiltersToCard(card, filters, platform);
   }
 
-  const bullionValue = await resolveCardBullionValue(card, locale, context.lotUrl);
+  const bullionValue = await resolveCardBullionValue(context.title, locale, context.productUrl);
   if (bullionValue !== null && bullionValue > 0) {
     const premiumPercent = ((breakdown.total - bullionValue) / bullionValue) * 100;
     updateBullionBadge(totalEl.badge, premiumPercent, bullionValue, locale);
   }
 }
 
-function countCardsWithin(element: Element): number {
-  const nestedCards = queryAllCards(element).length;
-  const includesSelf = CARD_SELECTORS.some((selector) => element.matches(selector));
-  return nestedCards + (includesSelf ? 1 : 0);
-}
+// --- Filter & visibility ---
 
-function getCardItemTarget(card: Element): HTMLElement {
-  const listItem = card.closest<HTMLElement>('li, [role="listitem"]');
-  if (listItem && countCardsWithin(listItem) === 1) return listItem;
-
-  const parent = card.parentElement;
-  if (
-    parent instanceof HTMLAnchorElement
-    && /\/l\/|view_lot=/.test(parent.href)
-    && countCardsWithin(parent) === 1
-  ) {
-    return parent;
-  }
-
-  return card as HTMLElement;
-}
-
-function setFilteredVisibility(card: Element, hidden: boolean): void {
-  const target = getCardItemTarget(card);
+function setFilteredVisibility(card: Element, hidden: boolean, platform: Platform): void {
+  const target = platform.getCardItemContainer(card);
   target.setAttribute('data-catawiki-ext-filter-hidden', hidden ? 'true' : 'false');
   if (hidden) {
     target.style.setProperty('display', 'none', 'important');
@@ -382,8 +300,8 @@ function setFilteredVisibility(card: Element, hidden: boolean): void {
   }
 }
 
-function removeIgnoredCard(card: Element): void {
-  const removeTarget = getCardItemTarget(card);
+function removeIgnoredCard(card: Element, platform: Platform): void {
+  const removeTarget = platform.getCardItemContainer(card);
   removeTarget.setAttribute('data-catawiki-ext-ignored', 'true');
   removeTarget.remove();
 }
@@ -406,9 +324,11 @@ function getCardFilterData(card: Element) {
   };
 }
 
-function applyListingFiltersToCard(card: Element, filters: ListingFilters): void {
-  setFilteredVisibility(card, shouldHideByListingFilters(filters, getCardFilterData(card)));
+function applyListingFiltersToCard(card: Element, filters: ListingFilters, platform: Platform): void {
+  setFilteredVisibility(card, shouldHideByListingFilters(filters, getCardFilterData(card)), platform);
 }
+
+// --- Ignore button ---
 
 function ensureCardOverlayPosition(card: Element): void {
   if (!(card instanceof HTMLElement)) return;
@@ -419,17 +339,22 @@ function ensureCardOverlayPosition(card: Element): void {
   }
 }
 
-function injectIgnoreButton(card: Element, locale: string, lotId: string): void {
+function injectIgnoreButton(
+  card: Element,
+  locale: string,
+  productId: string,
+  productUrl: string | null,
+  title: string,
+  platform: Platform,
+): void {
   if (card.querySelector(`[${EXT_ATTR}="card-ignore-button"]`)) return;
 
   ensureCardOverlayPosition(card);
-  const identity = getCardLotIdentity(card);
-  const title = getCardTitle(card, lotId);
 
   const button = createExtElement('button', 'card-ignore-button') as HTMLButtonElement;
   button.type = 'button';
   applyStyles(button, CARD_IGNORE_BUTTON_STYLES);
-  button.textContent = '👎';
+  button.textContent = '\uD83D\uDC4E';
   button.title = getLabel('ignore_lot', locale);
   button.setAttribute('aria-label', getLabel('ignore_lot', locale));
 
@@ -440,77 +365,92 @@ function injectIgnoreButton(card: Element, locale: string, lotId: string): void 
     button.disabled = true;
 
     void ignoreLot({
-      lotId,
-      lotUrl: identity.lotUrl,
+      lotId: productId,
+      lotUrl: productUrl,
       title,
     })
       .then(() => {
-        removeIgnoredCard(card);
+        removeIgnoredCard(card, platform);
       })
       .catch((error) => {
         button.disabled = false;
-        console.warn('[Catawiki Price Ext] Failed to ignore lot:', lotId, error);
+        console.warn('[CoinScope Ext] Failed to ignore item:', productId, error);
       });
   });
 
   card.appendChild(button);
 }
 
+// --- Card injection orchestrator ---
+
 function injectCardTotal(
   card: Element,
   locale: string,
   ignoredLotIds: ReadonlySet<string>,
   filters: ListingFilters,
+  platform: Platform,
 ): void {
-  const identity = getCardLotIdentity(card);
-  if (shouldHideIgnoredLot(identity.lotId, ignoredLotIds)) {
-    removeIgnoredCard(card);
+  // Check if card should be hidden (ignored) — use lightweight ID extraction
+  const productId = getCardProductId(card, platform);
+  if (shouldHideIgnoredLot(productId, ignoredLotIds)) {
+    removeIgnoredCard(card, platform);
     return;
   }
 
+  // Extract full card context from platform
+  const context = platform.extractCardContext(card, locale);
+
+  // Set noReserve attribute and apply filters
   if (card instanceof HTMLElement) {
-    card.dataset.catawikiExtNoReserve = String(hasNoReserveBadge(card));
+    card.dataset.catawikiExtNoReserve = String(context?.noReserve ?? false);
   }
-  applyListingFiltersToCard(card, filters);
+  applyListingFiltersToCard(card, filters, platform);
 
-  if (identity.lotId) {
-    injectIgnoreButton(card, locale, identity.lotId);
+  // Inject ignore button
+  const effectiveProductId = context?.productId ?? productId;
+  if (effectiveProductId) {
+    const productUrl = context?.productUrl ?? getCardProductUrl(card, platform);
+    const title = context?.title ?? getFallbackTitle(card, effectiveProductId);
+    injectIgnoreButton(card, locale, effectiveProductId, productUrl, title, platform);
   }
 
+  // Early return for no-reserve filter
   if (filters.onlyNoReserve && card instanceof HTMLElement && card.dataset.catawikiExtNoReserve !== 'true') {
     return;
   }
 
+  // Skip if already injected or no processable context
   if (card.querySelector(`[${EXT_ATTR}="card-total"]`)) return;
-
-  const context = buildCardContext(card, locale);
   if (!context) return;
 
+  // Create and inject total widget
   const totalEl = buildCardTotal(locale, context.status);
-  context.priceEl.after(totalEl.root);
+  context.priceElement.after(totalEl.root);
 
-  void populateCardTotal(card, totalEl, context, locale, filters);
+  void populateCardTotal(card, totalEl, context, locale, filters, platform);
 }
 
-export function injectListingTotals(): void {
-  const locale = detectLocale();
+// --- Entry points ---
+
+export function injectListingTotals(platform: Platform): void {
+  const locale = platform.detectLocale();
   void Promise.all([getIgnoredLotIds(), getListingFilters()])
     .then(([ignoredLotIds, filters]) => {
-      const cards = queryAllCards();
-      cards.forEach((card) => injectCardTotal(card, locale, ignoredLotIds, filters));
+      const cards = platform.queryAllCards();
+      cards.forEach((card) => injectCardTotal(card, locale, ignoredLotIds, filters, platform));
     })
     .catch((error) => {
-      console.warn('[Catawiki Price Ext] Failed to load listing state:', error);
-      const cards = queryAllCards();
+      console.warn('[CoinScope Ext] Failed to load listing state:', error);
+      const cards = platform.queryAllCards();
       const fallbackFilters: ListingFilters = {
         maxEstimatedTotal: null,
         maxShipping: null,
         onlyNoReserve: false,
       };
-      cards.forEach((card) => injectCardTotal(card, locale, new Set<string>(), fallbackFilters));
+      cards.forEach((card) => injectCardTotal(card, locale, new Set<string>(), fallbackFilters, platform));
     });
 }
 
-export function updateListingTotals(): void {
-  injectListingTotals();
+export function updateListingTotals(platform: Platform): void {
+  injectListingTotals(platform);
 }

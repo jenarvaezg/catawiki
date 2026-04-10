@@ -164,17 +164,20 @@ function fetchLotHtmlViaIframe(lotUrl: string): Promise<string> {
   });
 }
 
-export function resolveLotCostDetails(lotUrl: string): Promise<LotCostDetails> {
+export function resolveLotCostDetails(
+  lotUrl: string,
+  extractFn: (html: string) => LotCostDetails = extractLotCostDetailsFromHtml,
+): Promise<LotCostDetails> {
   const absoluteUrl = new URL(lotUrl, window.location.href).toString();
   const cached = lotCostCache.get(absoluteUrl);
   if (cached) return cached;
 
   const request = withFetchSlot(async () => {
     try {
-      return extractLotCostDetailsFromHtml(await fetchLotHtmlViaBackground(absoluteUrl));
+      return extractFn(await fetchLotHtmlViaBackground(absoluteUrl));
     } catch (backgroundError) {
       console.warn('[Catawiki Price Ext] Background fetch failed, falling back to iframe load:', absoluteUrl, backgroundError);
-      return extractLotCostDetailsFromHtml(await fetchLotHtmlViaIframe(absoluteUrl));
+      return extractFn(await fetchLotHtmlViaIframe(absoluteUrl));
     }
   }).catch((error) => {
     lotCostCache.delete(absoluteUrl);

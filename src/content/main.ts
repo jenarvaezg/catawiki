@@ -4,7 +4,6 @@ import { injectLotDetailMarketWidget } from './lot-market-injector';
 import { injectListingFiltersPanel } from './listing-filters-panel';
 import { injectIgnoredLotsPanel } from './ignored-lots-panel';
 import { injectListingTotals, updateListingTotals } from './listing-injector';
-import { detectPageType } from './page-type';
 import {
   setupPriceObserver,
   setupListingObserver,
@@ -13,10 +12,13 @@ import {
 } from './mutation-observer';
 import { EXT_ATTR } from './styles';
 import { injectUpdateNotifier } from './update-notifier';
+import { detectPlatform } from '../platforms/registry';
+import type { Platform } from '../platforms/platform';
 
 let activeObservers: MutationObserver[] = [];
 let activeIntervals: number[] = [];
 let reinitializing = false;
+let currentPlatform: Platform | null = null;
 
 function cleanupAll(): void {
   activeObservers.forEach((obs) => obs.disconnect());
@@ -28,7 +30,10 @@ function cleanupAll(): void {
 
 function init(): void {
   try {
-    const pageType = detectPageType(window.location.href);
+    currentPlatform = detectPlatform(window.location.href);
+    if (!currentPlatform) return;
+
+    const pageType = currentPlatform.detectPageType(window.location.href);
 
     if (pageType !== 'unknown') {
       void injectListingFiltersPanel();
@@ -37,44 +42,49 @@ function init(): void {
     }
 
     if (pageType === 'lot-detail') {
-      injectLotDetailTotal();
-      injectLotDetailMarketWidget();
-      injectListingTotals();
+      // Catawiki-specific auction detail features (bid totals, modals, quick bids)
+      if (currentPlatform.id === 'catawiki') {
+        injectLotDetailTotal();
 
-      // Watch for bid confirmation modal appearing
-      const modalObs = setupModalObserver();
-      activeObservers.push(modalObs);
+        const modalObs = setupModalObserver();
+        activeObservers.push(modalObs);
 
-      const relatedCardsObserver = setupListingObserver(() => updateListingTotals(), document.body);
+        const bidSection = queryWithFallback(LOT_DETAIL.BID_SECTION);
+        const observeTarget = bidSection?.parentElement ?? bidSection;
+        if (observeTarget) {
+          const obs = setupPriceObserver(observeTarget, () => {
+            updateLotDetailTotal();
+            injectLotDetailMarketWidget(currentPlatform!);
+            updateListingTotals(currentPlatform!);
+          });
+          activeObservers.push(obs);
+
+          const healthId = setupObserverHealthCheck(observeTarget, () => {
+            if (reinitializing) return;
+            reinitializing = true;
+            cleanupAll();
+            init();
+            reinitializing = false;
+          });
+          activeIntervals.push(healthId);
+        }
+      }
+
+      // Market widgets (Numista + bullion) — all platforms
+      injectLotDetailMarketWidget(currentPlatform);
+
+      // Related lots on detail pages — all platforms
+      injectListingTotals(currentPlatform);
+      const relatedCardsObserver = setupListingObserver(() => updateListingTotals(currentPlatform!), document.body);
       activeObservers.push(relatedCardsObserver);
 
-      const bidSection = queryWithFallback(LOT_DETAIL.BID_SECTION);
-      // Observe the parent bidding panel (covers bid section + quick bid buttons + other siblings)
-      const observeTarget = bidSection?.parentElement ?? bidSection;
-      if (observeTarget) {
-        const obs = setupPriceObserver(observeTarget, () => {
-          updateLotDetailTotal();
-          injectLotDetailMarketWidget();
-          updateListingTotals();
-        });
-        activeObservers.push(obs);
-
-        const healthId = setupObserverHealthCheck(observeTarget, () => {
-          if (reinitializing) return;
-          reinitializing = true;
-          cleanupAll();
-          init();
-          reinitializing = false;
-        });
-        activeIntervals.push(healthId);
-      }
     } else if (pageType === 'listing') {
-      injectListingTotals();
-      const obs = setupListingObserver(() => updateListingTotals());
+      injectListingTotals(currentPlatform);
+      const obs = setupListingObserver(() => updateListingTotals(currentPlatform!));
       activeObservers.push(obs);
     }
   } catch (e) {
-    console.warn('[Catawiki Price Ext] Error during init:', e);
+    console.warn('[CoinScope Ext] Error during init:', e);
   }
 }
 
