@@ -1,8 +1,7 @@
 import { LOT_DETAIL, queryWithFallback } from './dom-selectors';
 import { injectLotDetailTotal, updateLotDetailTotal, setupModalObserver } from './lot-detail-injector';
 import { injectLotDetailMarketWidget } from './lot-market-injector';
-import { injectListingFiltersPanel } from './listing-filters-panel';
-import { injectIgnoredLotsPanel } from './ignored-lots-panel';
+import { injectControlPanel, removeOldPanels } from './control-panel';
 import { injectListingTotals, updateListingTotals } from './listing-injector';
 import {
   setupPriceObserver,
@@ -36,9 +35,9 @@ function init(): void {
     const pageType = currentPlatform.detectPageType(window.location.href);
 
     if (pageType !== 'unknown') {
-      void injectListingFiltersPanel();
+      removeOldPanels();
+      injectControlPanel(currentPlatform);
       void injectUpdateNotifier();
-      void injectIgnoredLotsPanel();
     }
 
     if (pageType === 'lot-detail') {
