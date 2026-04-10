@@ -5,4 +5,5 @@ dist/
 
 # Test artifacts
 *.png
+!src/icons/*.png
 state/
