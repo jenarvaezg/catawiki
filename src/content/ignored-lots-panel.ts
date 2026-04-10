@@ -175,7 +175,7 @@ function createIgnoredLotsPanel(lots: readonly IgnoredLotEntry[], locale: string
       restoreButton.disabled = true;
       void unignoreLot(lot.lotId).catch((error) => {
         restoreButton.disabled = false;
-        console.warn('[Catawiki Price Ext] Failed to restore ignored lot:', lot.lotId, error);
+        console.warn('[CoinScope] Failed to restore ignored lot:', lot.lotId, error);
       });
     });
     actions.appendChild(restoreButton);
@@ -202,6 +202,6 @@ export async function injectIgnoredLotsPanel(): Promise<void> {
     const panel = createIgnoredLotsPanel(lots, detectLocale());
     document.body.appendChild(panel);
   } catch (error) {
-    console.warn('[Catawiki Price Ext] Failed to render ignored lots panel:', error);
+    console.warn('[CoinScope] Failed to render ignored lots panel:', error);
   }
 }

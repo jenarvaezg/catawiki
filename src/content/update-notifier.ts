@@ -173,6 +173,6 @@ export async function injectUpdateNotifier(): Promise<void> {
     const banner = createUpdateBanner(response.result, detectLocale());
     document.body.appendChild(banner);
   } catch (error) {
-    console.warn('[Catawiki Price Ext] Failed to check extension update status:', error);
+    console.warn('[CoinScope] Failed to check extension update status:', error);
   }
 }

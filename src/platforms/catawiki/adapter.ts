@@ -166,7 +166,7 @@ export class CatawikiPlatform implements Platform {
 
   getDetailInjectionAnchor(doc?: Document): Element | null {
     const root = doc ?? document;
-    return root.querySelector(`[data-catawiki-ext="total-price"]`)
+    return root.querySelector(`[data-coinscope-ext="total-price"]`)
       ?? queryWithFallback(LOT_DETAIL.BID_SECTION, root);
   }
 

@@ -224,6 +224,6 @@ export async function injectListingFiltersPanel(): Promise<void> {
     const panel = createListingFiltersPanel(filters, detectLocale());
     document.body.appendChild(panel);
   } catch (error) {
-    console.warn('[Catawiki Price Ext] Failed to render listing filters panel:', error);
+    console.warn('[CoinScope] Failed to render listing filters panel:', error);
   }
 }

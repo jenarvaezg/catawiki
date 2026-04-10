@@ -2,6 +2,7 @@ import { LOT_DETAIL, queryWithFallback } from './dom-selectors';
 import { injectLotDetailTotal, updateLotDetailTotal, setupModalObserver } from './lot-detail-injector';
 import { injectLotDetailMarketWidget } from './lot-market-injector';
 import { injectControlPanel, removeOldPanels } from './control-panel';
+import { injectDetailTotal } from './detail-total-injector';
 import { injectListingTotals, updateListingTotals } from './listing-injector';
 import {
   setupPriceObserver,
@@ -67,6 +68,11 @@ function init(): void {
           });
           activeIntervals.push(healthId);
         }
+      }
+
+      // Generic detail total widget for non-auction platforms (Wallapop, Vinted)
+      if (currentPlatform.id !== 'catawiki') {
+        injectDetailTotal(currentPlatform);
       }
 
       // Market widgets (Numista + bullion) — all platforms

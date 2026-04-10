@@ -1,4 +1,4 @@
-const EXT_ATTR = 'data-catawiki-ext';
+const EXT_ATTR = 'data-coinscope-ext';
 
 export { EXT_ATTR };
 

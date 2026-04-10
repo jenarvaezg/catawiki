@@ -176,7 +176,7 @@ export function resolveLotCostDetails(
     try {
       return extractFn(await fetchLotHtmlViaBackground(absoluteUrl));
     } catch (backgroundError) {
-      console.warn('[Catawiki Price Ext] Background fetch failed, falling back to iframe load:', absoluteUrl, backgroundError);
+      console.warn('[CoinScope] Background fetch failed, falling back to iframe load:', absoluteUrl, backgroundError);
       return extractFn(await fetchLotHtmlViaIframe(absoluteUrl));
     }
   }).catch((error) => {

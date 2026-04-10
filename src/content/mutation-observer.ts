@@ -10,13 +10,13 @@ function isOwnMutation(mutations: MutationRecord[]): boolean {
   return mutations.every((m) => {
     // Check if the target itself is one of our elements
     const target = m.target instanceof Element ? m.target : m.target.parentElement;
-    if (target?.hasAttribute('data-catawiki-ext')) return true;
+    if (target?.hasAttribute('data-coinscope-ext')) return true;
     // Check if only our elements were added/removed
     const addedOwn = Array.from(m.addedNodes).every(
-      (n) => n instanceof Element && n.hasAttribute('data-catawiki-ext'),
+      (n) => n instanceof Element && n.hasAttribute('data-coinscope-ext'),
     );
     const removedOwn = Array.from(m.removedNodes).every(
-      (n) => n instanceof Element && n.hasAttribute('data-catawiki-ext'),
+      (n) => n instanceof Element && n.hasAttribute('data-coinscope-ext'),
     );
     if ((m.addedNodes.length > 0 || m.removedNodes.length > 0) && addedOwn && removedOwn) return true;
     return false;

@@ -292,7 +292,7 @@ async function populateCardTotal(
 
 function setFilteredVisibility(card: Element, hidden: boolean, platform: Platform): void {
   const target = platform.getCardItemContainer(card);
-  target.setAttribute('data-catawiki-ext-filter-hidden', hidden ? 'true' : 'false');
+  target.setAttribute('data-coinscope-ext-filter-hidden', hidden ? 'true' : 'false');
   if (hidden) {
     target.style.setProperty('display', 'none', 'important');
   } else {
@@ -302,7 +302,7 @@ function setFilteredVisibility(card: Element, hidden: boolean, platform: Platfor
 
 function removeIgnoredCard(card: Element, platform: Platform): void {
   const removeTarget = platform.getCardItemContainer(card);
-  removeTarget.setAttribute('data-catawiki-ext-ignored', 'true');
+  removeTarget.setAttribute('data-coinscope-ext-ignored', 'true');
   removeTarget.style.setProperty('display', 'none', 'important');
 }
 

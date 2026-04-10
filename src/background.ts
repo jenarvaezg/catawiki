@@ -489,7 +489,7 @@ async function searchTypes(
     return response.types ?? [];
   } catch (error) {
     if (error instanceof NumistaApiError && error.status === 400) {
-      console.warn('[Catawiki Price Ext] Ignoring invalid Numista search combination:', {
+      console.warn('[CoinScope] Ignoring invalid Numista search combination:', {
         query,
         year,
         weight,
@@ -761,7 +761,7 @@ async function enrichResultWithBullion(
       bullion: estimateBullionValue(basis, spot),
     };
   } catch (error) {
-    console.warn('[Catawiki Price Ext] Failed to resolve bullion spot:', error);
+    console.warn('[CoinScope] Failed to resolve bullion spot:', error);
     return {
       ...result,
       bullion: null,
