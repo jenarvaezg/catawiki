@@ -20,6 +20,7 @@ import type {
 import {
   buildLotSearchMetadata,
   type BullionResolutionResult,
+  type NumistaAlternative,
   type NumistaMarketResult,
 } from '../shared/numista';
 
@@ -228,6 +229,75 @@ function createNumistaWidget(locale: string) {
   return { root, button, amount, details, meta, link, alternatives };
 }
 
+function renderNumistaAlternatives(
+  widget: ReturnType<typeof createNumistaWidget>,
+  alternatives: readonly NumistaAlternative[] | undefined,
+  selectedTypeId: number | undefined,
+  locale: string,
+  onSelect: (typeId: number) => void,
+): void {
+  widget.alternatives.innerHTML = '';
+
+  const usableAlternatives = (alternatives ?? []).filter((alternative) => alternative.id !== selectedTypeId);
+  if (usableAlternatives.length === 0) {
+    widget.alternatives.style.display = 'none';
+    return;
+  }
+
+  widget.alternatives.style.display = 'block';
+
+  const title = document.createElement('div');
+  title.textContent = getLabel('numista_alternatives', locale);
+  widget.alternatives.appendChild(title);
+
+  const list = document.createElement('div');
+  applyStyles(list, {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    marginTop: '6px',
+  });
+  widget.alternatives.appendChild(list);
+
+  usableAlternatives.forEach((alternative) => {
+    const row = document.createElement('div');
+    applyStyles(row, {
+      display: 'flex',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: '8px',
+    });
+
+    if (alternative.url) {
+      const alternativeLink = document.createElement('a');
+      applyStyles(alternativeLink, LINK_STYLES);
+      alternativeLink.href = alternative.url;
+      alternativeLink.target = '_blank';
+      alternativeLink.rel = 'noopener noreferrer';
+      alternativeLink.textContent = alternative.title;
+      row.appendChild(alternativeLink);
+    } else {
+      const alternativeText = document.createElement('span');
+      alternativeText.textContent = alternative.title;
+      row.appendChild(alternativeText);
+    }
+
+    const useButton = document.createElement('button');
+    useButton.type = 'button';
+    applyStyles(useButton, {
+      ...ACTION_BUTTON_STYLES,
+      marginTop: '0',
+      padding: '5px 8px',
+      fontSize: '10px',
+    });
+    useButton.textContent = getLabel('numista_use_match', locale);
+    useButton.addEventListener('click', () => onSelect(alternative.id));
+    row.appendChild(useButton);
+
+    list.appendChild(row);
+  });
+}
+
 function getNumistaStatusMessage(result: NumistaMarketResult, locale: string): string {
   switch (result.status) {
     case 'needs-api-key':
@@ -251,6 +321,7 @@ function renderNumistaResult(
   widget: ReturnType<typeof createNumistaWidget>,
   result: NumistaMarketResult,
   locale: string,
+  onSelectAlternative: (typeId: number) => void,
 ): void {
   widget.button.disabled = false;
   widget.button.textContent = getLabel('numista_refresh', locale);
@@ -269,31 +340,7 @@ function renderNumistaResult(
       widget.link.style.display = 'none';
     }
 
-    widget.alternatives.innerHTML = '';
-    if (result.alternatives && result.alternatives.length > 0) {
-      widget.alternatives.style.display = 'block';
-      result.alternatives.forEach((alternative, index) => {
-        if (index > 0) {
-          widget.alternatives.appendChild(document.createTextNode(' · '));
-        }
-
-        if (alternative.url) {
-          const alternativeLink = document.createElement('a');
-          applyStyles(alternativeLink, LINK_STYLES);
-          alternativeLink.href = alternative.url;
-          alternativeLink.target = '_blank';
-          alternativeLink.rel = 'noopener noreferrer';
-          alternativeLink.textContent = alternative.title;
-          widget.alternatives.appendChild(alternativeLink);
-        } else {
-          const alternativeText = document.createElement('span');
-          alternativeText.textContent = alternative.title;
-          widget.alternatives.appendChild(alternativeText);
-        }
-      });
-    } else {
-      widget.alternatives.style.display = 'none';
-    }
+    renderNumistaAlternatives(widget, result.alternatives, result.typeId, locale, onSelectAlternative);
 
     return;
   }
@@ -311,6 +358,8 @@ function renderNumistaResult(
 
   const metaParts = [];
   if (result.typeId) metaParts.push(`Numista #${result.typeId}`);
+  if (result.selectionSource === 'manual') metaParts.push(getLabel('numista_manual_match', locale));
+  if (result.selectionSource === 'stored') metaParts.push(getLabel('numista_saved_match', locale));
   if (result.source === 'cache' && result.cachedAt) {
     metaParts.push(`${getLabel('numista_cached', locale)} · ${formatTimestamp(result.cachedAt, locale)}`);
   }
@@ -327,8 +376,7 @@ function renderNumistaResult(
     widget.link.style.display = 'none';
   }
 
-  widget.alternatives.style.display = 'none';
-  widget.alternatives.innerHTML = '';
+  renderNumistaAlternatives(widget, result.alternatives, result.typeId, locale, onSelectAlternative);
 }
 
 function renderBullionAmount(
@@ -467,12 +515,17 @@ async function promptAndStoreApiKey(locale: string, invalidKey = false): Promise
   return true;
 }
 
-async function resolveNumistaValue(locale: string, forceRefresh: boolean): Promise<NumistaMarketResult | null> {
+async function resolveNumistaValue(
+  locale: string,
+  forceRefresh: boolean,
+  preferredTypeId: number | null = null,
+): Promise<NumistaMarketResult | null> {
   const metadata = buildLotSearchMetadata(window.location.href, findLotTitle(), locale, findLotContextText());
   let response = await runtimeSendMessage<ResolveNumistaMarketResponse>({
     type: 'resolve-numista-market',
     metadata,
     forceRefresh,
+    preferredTypeId: preferredTypeId ?? undefined,
   });
 
   if (!response.ok) {
@@ -487,6 +540,7 @@ async function resolveNumistaValue(locale: string, forceRefresh: boolean): Promi
       type: 'resolve-numista-market',
       metadata,
       forceRefresh: true,
+      preferredTypeId: preferredTypeId ?? undefined,
     });
 
     if (!response.ok) {
@@ -549,9 +603,10 @@ export function injectLotDetailMarketWidget(): void {
 
   void loadBullionWidget(bullionWidget, locale, false);
 
-  numistaWidget.button.addEventListener('click', async () => {
-    const forceRefresh = numistaWidget.button.textContent === getLabel('numista_refresh', locale);
-
+  const loadAndRenderNumista = async (
+    forceRefresh: boolean,
+    preferredTypeId: number | null = null,
+  ) => {
     numistaWidget.button.disabled = true;
     numistaWidget.details.style.display = 'block';
     numistaWidget.details.textContent = getLabel('numista_loading', locale);
@@ -562,14 +617,21 @@ export function injectLotDetailMarketWidget(): void {
     numistaWidget.alternatives.innerHTML = '';
 
     try {
-      const result = await resolveNumistaValue(locale, forceRefresh);
+      const result = await resolveNumistaValue(locale, forceRefresh, preferredTypeId);
       if (!result) {
         numistaWidget.button.disabled = false;
         numistaWidget.details.style.display = 'none';
         return;
       }
 
-      renderNumistaResult(numistaWidget, result, locale);
+      renderNumistaResult(
+        numistaWidget,
+        result,
+        locale,
+        (selectedTypeId) => {
+          void loadAndRenderNumista(true, selectedTypeId);
+        },
+      );
       if (result.bullion) {
         renderBullionResult(bullionWidget, {
           status: 'ok',
@@ -584,5 +646,10 @@ export function injectLotDetailMarketWidget(): void {
       numistaWidget.details.style.display = 'block';
       numistaWidget.details.textContent = `${getLabel('numista_error', locale)} ${error instanceof Error ? error.message : ''}`.trim();
     }
+  };
+
+  numistaWidget.button.addEventListener('click', async () => {
+    const forceRefresh = numistaWidget.button.textContent === getLabel('numista_refresh', locale);
+    await loadAndRenderNumista(forceRefresh, null);
   });
 }

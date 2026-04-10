@@ -17,6 +17,10 @@ type LabelKey =
   | 'numista_no_issue'
   | 'numista_no_prices'
   | 'numista_error'
+  | 'numista_alternatives'
+  | 'numista_use_match'
+  | 'numista_manual_match'
+  | 'numista_saved_match'
   | 'bullion_lookup'
   | 'bullion_refresh'
   | 'bullion_loading'
@@ -27,8 +31,27 @@ type LabelKey =
   | 'bullion_title_basis'
   | 'bullion_numista_cache_basis'
   | 'bullion_value'
+  | 'bullion_badge'
   | 'bullion_fine_weight'
-  | 'bullion_spot';
+  | 'bullion_spot'
+  | 'ignore_lot'
+  | 'ignored_lots_manage'
+  | 'ignored_lots_title'
+  | 'ignored_lots_empty'
+  | 'ignored_lots_restore'
+  | 'ignored_lots_open'
+  | 'ignored_lots_reload_hint'
+  | 'listing_filters_manage'
+  | 'listing_filters_title'
+  | 'listing_filters_only_no_reserve'
+  | 'listing_filters_max_total'
+  | 'listing_filters_max_shipping'
+  | 'listing_filters_reset'
+  | 'listing_filters_hint'
+  | 'update_available'
+  | 'update_open_release'
+  | 'update_dismiss'
+  | 'update_manual_hint';
 
 const LABELS: Record<string, Record<LabelKey, string>> = {
   en: {
@@ -50,6 +73,10 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     numista_no_issue: 'Numista found the type, but not a matching issue for the year.',
     numista_no_prices: 'Numista found the type, but there are no price estimates for that issue.',
     numista_error: 'Numista request failed.',
+    numista_alternatives: 'Other possible matches',
+    numista_use_match: 'Use this match',
+    numista_manual_match: 'Manual match',
+    numista_saved_match: 'Saved match',
     bullion_lookup: 'Calculate melt value',
     bullion_refresh: 'Refresh melt value',
     bullion_loading: 'Checking metal spot…',
@@ -60,8 +87,27 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     bullion_title_basis: 'Calculated from the lot title.',
     bullion_numista_cache_basis: 'Calculated from cached Numista data.',
     bullion_value: 'Bullion / melt value',
+    bullion_badge: 'Bullion',
     bullion_fine_weight: 'g fine',
     bullion_spot: 'Spot',
+    ignore_lot: 'Ignore this lot',
+    ignored_lots_manage: 'Ignored',
+    ignored_lots_title: 'Ignored lots',
+    ignored_lots_empty: 'No ignored lots yet.',
+    ignored_lots_restore: 'Restore',
+    ignored_lots_open: 'Open',
+    ignored_lots_reload_hint: 'Restored lots will appear again after reloading the page.',
+    listing_filters_manage: 'Filters',
+    listing_filters_title: 'Listing filters',
+    listing_filters_only_no_reserve: 'Only no-reserve lots',
+    listing_filters_max_total: 'Max estimated total',
+    listing_filters_max_shipping: 'Max shipping',
+    listing_filters_reset: 'Reset filters',
+    listing_filters_hint: 'Applies to listing cards and related lots on detail pages.',
+    update_available: 'Extension update available',
+    update_open_release: 'Open release',
+    update_dismiss: 'Dismiss',
+    update_manual_hint: 'Download the latest release and reload the extension.',
   },
   es: {
     total_price: 'Total estimado',
@@ -82,6 +128,10 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     numista_no_issue: 'Numista encontró el tipo, pero no un issue que encaje con el año.',
     numista_no_prices: 'Numista encontró el tipo, pero no tiene estimaciones de precio para ese issue.',
     numista_error: 'Falló la consulta a Numista.',
+    numista_alternatives: 'Otras coincidencias posibles',
+    numista_use_match: 'Usar este match',
+    numista_manual_match: 'Match manual',
+    numista_saved_match: 'Match guardado',
     bullion_lookup: 'Calcular fundición',
     bullion_refresh: 'Actualizar fundición',
     bullion_loading: 'Consultando spot del metal…',
@@ -92,8 +142,27 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     bullion_title_basis: 'Calculado desde el título del lote.',
     bullion_numista_cache_basis: 'Calculado desde caché de Numista.',
     bullion_value: 'Valor bullion / fundición',
+    bullion_badge: 'Bullion',
     bullion_fine_weight: 'g finos',
     bullion_spot: 'Spot',
+    ignore_lot: 'Ignorar este lote',
+    ignored_lots_manage: 'Ignorados',
+    ignored_lots_title: 'Lotes ignorados',
+    ignored_lots_empty: 'Aún no hay lotes ignorados.',
+    ignored_lots_restore: 'Restaurar',
+    ignored_lots_open: 'Abrir',
+    ignored_lots_reload_hint: 'Los lotes restaurados volverán a salir al recargar la página.',
+    listing_filters_manage: 'Filtros',
+    listing_filters_title: 'Filtros de listado',
+    listing_filters_only_no_reserve: 'Sólo lotes sin reserva',
+    listing_filters_max_total: 'Total estimado máximo',
+    listing_filters_max_shipping: 'Envío máximo',
+    listing_filters_reset: 'Resetear filtros',
+    listing_filters_hint: 'Se aplica a listados y a lotes relacionados en la ficha.',
+    update_available: 'Hay una actualización de la extensión',
+    update_open_release: 'Abrir release',
+    update_dismiss: 'Ocultar',
+    update_manual_hint: 'Descarga la última release y recarga la extensión.',
   },
   de: {
     total_price: 'Geschätzter Gesamtpreis',
@@ -114,6 +183,10 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     numista_no_issue: 'Numista hat den Typ gefunden, aber kein passendes Ausgabejahr.',
     numista_no_prices: 'Numista hat den Typ gefunden, aber keine Preisangaben für diese Ausgabe.',
     numista_error: 'Numista-Anfrage fehlgeschlagen.',
+    numista_alternatives: 'Weitere mögliche Treffer',
+    numista_use_match: 'Diesen Treffer verwenden',
+    numista_manual_match: 'Manueller Treffer',
+    numista_saved_match: 'Gespeicherter Treffer',
     bullion_lookup: 'Schmelzwert berechnen',
     bullion_refresh: 'Schmelzwert aktualisieren',
     bullion_loading: 'Metall-Spot wird abgefragt…',
@@ -124,8 +197,27 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     bullion_title_basis: 'Aus dem Los-Titel berechnet.',
     bullion_numista_cache_basis: 'Aus gecachten Numista-Daten berechnet.',
     bullion_value: 'Bullion- / Schmelzwert',
+    bullion_badge: 'Bullion',
     bullion_fine_weight: 'g fein',
     bullion_spot: 'Spot',
+    ignore_lot: 'Dieses Los ignorieren',
+    ignored_lots_manage: 'Ignoriert',
+    ignored_lots_title: 'Ignorierte Lose',
+    ignored_lots_empty: 'Noch keine ignorierten Lose.',
+    ignored_lots_restore: 'Wiederherstellen',
+    ignored_lots_open: 'Öffnen',
+    ignored_lots_reload_hint: 'Wiederhergestellte Lose erscheinen nach dem Neuladen der Seite wieder.',
+    listing_filters_manage: 'Filter',
+    listing_filters_title: 'Listenfilter',
+    listing_filters_only_no_reserve: 'Nur Lose ohne Mindestpreis',
+    listing_filters_max_total: 'Max. geschätzter Gesamtpreis',
+    listing_filters_max_shipping: 'Max. Versand',
+    listing_filters_reset: 'Filter zurücksetzen',
+    listing_filters_hint: 'Gilt für Listen und verwandte Lose auf Detailseiten.',
+    update_available: 'Erweiterungs-Update verfügbar',
+    update_open_release: 'Release öffnen',
+    update_dismiss: 'Ausblenden',
+    update_manual_hint: 'Lade die neueste Release herunter und lade die Erweiterung neu.',
   },
   fr: {
     total_price: 'Total estimé',
@@ -146,6 +238,10 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     numista_no_issue: 'Numista a trouvé le type, mais pas l’émission correspondant à l’année.',
     numista_no_prices: 'Numista a trouvé le type, mais il n’y a pas d’estimation de prix pour cette émission.',
     numista_error: 'La requête Numista a échoué.',
+    numista_alternatives: 'Autres correspondances possibles',
+    numista_use_match: 'Utiliser cette correspondance',
+    numista_manual_match: 'Correspondance manuelle',
+    numista_saved_match: 'Correspondance enregistrée',
     bullion_lookup: 'Calculer la fonte',
     bullion_refresh: 'Actualiser la fonte',
     bullion_loading: 'Interrogation du spot métal…',
@@ -156,8 +252,27 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     bullion_title_basis: 'Calculée depuis le titre du lot.',
     bullion_numista_cache_basis: 'Calculée depuis le cache Numista.',
     bullion_value: 'Valeur bullion / fonte',
+    bullion_badge: 'Bullion',
     bullion_fine_weight: 'g fin',
     bullion_spot: 'Spot',
+    ignore_lot: 'Ignorer ce lot',
+    ignored_lots_manage: 'Ignorés',
+    ignored_lots_title: 'Lots ignorés',
+    ignored_lots_empty: 'Aucun lot ignoré pour le moment.',
+    ignored_lots_restore: 'Restaurer',
+    ignored_lots_open: 'Ouvrir',
+    ignored_lots_reload_hint: 'Les lots restaurés réapparaîtront après rechargement de la page.',
+    listing_filters_manage: 'Filtres',
+    listing_filters_title: 'Filtres de liste',
+    listing_filters_only_no_reserve: 'Seulement les lots sans réserve',
+    listing_filters_max_total: 'Total estimé max',
+    listing_filters_max_shipping: 'Livraison max',
+    listing_filters_reset: 'Réinitialiser les filtres',
+    listing_filters_hint: 'S’applique aux listes et aux lots liés sur la fiche.',
+    update_available: 'Une mise à jour de l’extension est disponible',
+    update_open_release: 'Ouvrir la release',
+    update_dismiss: 'Masquer',
+    update_manual_hint: 'Téléchargez la dernière release puis rechargez l’extension.',
   },
   nl: {
     total_price: 'Geschatte totaalprijs',
@@ -178,6 +293,10 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     numista_no_issue: 'Numista vond het type, maar niet de juiste uitgave voor het jaar.',
     numista_no_prices: 'Numista vond het type, maar heeft geen prijsinschattingen voor die uitgave.',
     numista_error: 'Numista-aanvraag mislukt.',
+    numista_alternatives: 'Andere mogelijke matches',
+    numista_use_match: 'Gebruik deze match',
+    numista_manual_match: 'Handmatige match',
+    numista_saved_match: 'Opgeslagen match',
     bullion_lookup: 'Smeltwaarde berekenen',
     bullion_refresh: 'Smeltwaarde vernieuwen',
     bullion_loading: 'Metaalspot wordt opgehaald…',
@@ -188,8 +307,27 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     bullion_title_basis: 'Berekend uit de lottitel.',
     bullion_numista_cache_basis: 'Berekend uit Numista-cache.',
     bullion_value: 'Bullion- / smeltwaarde',
+    bullion_badge: 'Bullion',
     bullion_fine_weight: 'g fijn',
     bullion_spot: 'Spot',
+    ignore_lot: 'Dit kavel negeren',
+    ignored_lots_manage: 'Genegeerd',
+    ignored_lots_title: 'Genegeerde kavels',
+    ignored_lots_empty: 'Nog geen genegeerde kavels.',
+    ignored_lots_restore: 'Herstellen',
+    ignored_lots_open: 'Openen',
+    ignored_lots_reload_hint: 'Herstelde kavels verschijnen weer nadat je de pagina herlaadt.',
+    listing_filters_manage: 'Filters',
+    listing_filters_title: 'Lijstfilters',
+    listing_filters_only_no_reserve: 'Alleen kavels zonder minimumprijs',
+    listing_filters_max_total: 'Max. geschatte totaalprijs',
+    listing_filters_max_shipping: 'Max. verzending',
+    listing_filters_reset: 'Filters resetten',
+    listing_filters_hint: 'Geldt voor lijsten en gerelateerde kavels op detailpagina’s.',
+    update_available: 'Er is een extensie-update beschikbaar',
+    update_open_release: 'Release openen',
+    update_dismiss: 'Verbergen',
+    update_manual_hint: 'Download de nieuwste release en laad de extensie opnieuw.',
   },
 };
 

@@ -108,6 +108,7 @@ export interface BullionResolutionResult {
 export interface NumistaMarketResult {
   readonly status: 'ok' | 'bullion-only' | 'needs-api-key' | 'invalid-api-key' | 'no-match' | 'no-issue' | 'no-prices' | 'error';
   readonly source: 'api' | 'cache';
+  readonly selectionSource?: 'auto' | 'manual' | 'stored';
   readonly searchQuery: string;
   readonly title?: string;
   readonly url?: string;

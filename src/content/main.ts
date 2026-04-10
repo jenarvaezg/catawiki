@@ -1,6 +1,8 @@
 import { LOT_DETAIL, queryWithFallback } from './dom-selectors';
 import { injectLotDetailTotal, updateLotDetailTotal, setupModalObserver } from './lot-detail-injector';
 import { injectLotDetailMarketWidget } from './lot-market-injector';
+import { injectListingFiltersPanel } from './listing-filters-panel';
+import { injectIgnoredLotsPanel } from './ignored-lots-panel';
 import { injectListingTotals, updateListingTotals } from './listing-injector';
 import { detectPageType } from './page-type';
 import {
@@ -10,6 +12,7 @@ import {
   setupObserverHealthCheck,
 } from './mutation-observer';
 import { EXT_ATTR } from './styles';
+import { injectUpdateNotifier } from './update-notifier';
 
 let activeObservers: MutationObserver[] = [];
 let activeIntervals: number[] = [];
@@ -26,6 +29,12 @@ function cleanupAll(): void {
 function init(): void {
   try {
     const pageType = detectPageType(window.location.href);
+
+    if (pageType !== 'unknown') {
+      void injectListingFiltersPanel();
+      void injectUpdateNotifier();
+      void injectIgnoredLotsPanel();
+    }
 
     if (pageType === 'lot-detail') {
       injectLotDetailTotal();

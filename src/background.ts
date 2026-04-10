@@ -1,13 +1,16 @@
 import {
+  isCheckExtensionUpdateRequest,
   isFetchLotHtmlRequest,
   isResolveBullionValueRequest,
   isResolveNumistaMarketRequest,
   isSetNumistaApiKeyRequest,
+  type CheckExtensionUpdateResponse,
   type FetchLotHtmlResponse,
   type ResolveBullionValueResponse,
   type ResolveNumistaMarketResponse,
   type SetNumistaApiKeyResponse,
 } from './shared/messages';
+import { BUILD_INFO } from './shared/build-info';
 import {
   buildBullionBasis,
   buildDirectBullionBasis,
@@ -32,15 +35,25 @@ import {
   type NumistaTypeDetails,
   type NumistaTypeSearchResult,
 } from './shared/numista';
+import {
+  isReleaseNewerThanBuild,
+  parseReleaseTag,
+  type ExtensionUpdateState,
+  type UpdateReleaseSummary,
+} from './shared/update';
 
 const NUMISTA_API_BASE_URL = 'https://api.numista.com/v3';
 const BULLION_SPOT_API_BASE_URL = 'https://api.gold-api.com/price';
+const GITHUB_RELEASES_API_URL = 'https://api.github.com/repos/jenarvaezg/catawiki/releases?per_page=5';
 const NUMISTA_API_KEY_STORAGE_KEY = 'numista.apiKey';
 const NUMISTA_CACHE_PREFIX = 'numista.market.v7:';
+const NUMISTA_PREFERRED_TYPE_PREFIX = 'numista.preferred-type.v1:';
 const BULLION_SPOT_CACHE_PREFIX = 'bullion.spot.v1:';
+const UPDATE_CHECK_CACHE_KEY = 'extension.update.v1';
 const SUCCESS_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const EMPTY_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const BULLION_SPOT_TTL_MS = 1000 * 60 * 15;
+const UPDATE_CHECK_TTL_MS = 1000 * 60 * 60 * 12;
 const MAX_SEARCH_QUERIES = 4;
 const MAX_DETAIL_FETCHES = 3;
 const EARLY_STOP_SCORE = 18;
@@ -61,6 +74,13 @@ interface BullionSpotResponse {
   readonly updatedAt?: string;
 }
 
+interface GitHubReleaseResponseItem {
+  readonly tag_name?: string;
+  readonly html_url?: string;
+  readonly published_at?: string;
+  readonly draft?: boolean;
+}
+
 interface ResolvedTypeMatch {
   readonly best: NumistaTypeDetails | null;
   readonly alternatives: readonly NumistaAlternative[];
@@ -76,6 +96,11 @@ interface CachedBullionSpotQuote {
   readonly currency: string;
   readonly pricePerOunce: number;
   readonly updatedAt?: string;
+}
+
+interface CachedExtensionUpdateState {
+  readonly expiresAt: number;
+  readonly result: ExtensionUpdateState;
 }
 
 class NumistaApiError extends Error {
@@ -100,6 +125,14 @@ function cacheKeyForFingerprint(metadata: LotSearchMetadata): string {
 
 function cacheKeyForBullionSpot(metal: BullionMetal, currency: string): string {
   return `${BULLION_SPOT_CACHE_PREFIX}${metal}:${currency}`;
+}
+
+function preferredTypeKeyForLot(lotUrl: string): string {
+  return `${NUMISTA_PREFERRED_TYPE_PREFIX}lot:${lotUrl}`;
+}
+
+function preferredTypeKeyForFingerprint(metadata: LotSearchMetadata): string {
+  return `${NUMISTA_PREFERRED_TYPE_PREFIX}fp:${buildMarketCacheFingerprint(metadata)}`;
 }
 
 function supportedNumistaLanguage(locale: string): string {
@@ -175,6 +208,32 @@ function removeStorageValue(key: string): Promise<void> {
 
       resolve();
     });
+  });
+}
+
+async function loadPreferredTypeId(metadata: LotSearchMetadata): Promise<number | null> {
+  const lotKey = preferredTypeKeyForLot(metadata.lotUrl);
+  const lotValue = await getStorageValue<number>(lotKey);
+  if (typeof lotValue === 'number' && Number.isFinite(lotValue) && lotValue > 0) {
+    return lotValue;
+  }
+
+  const fingerprintKey = preferredTypeKeyForFingerprint(metadata);
+  if (fingerprintKey === lotKey) return null;
+
+  const fingerprintValue = await getStorageValue<number>(fingerprintKey);
+  if (typeof fingerprintValue === 'number' && Number.isFinite(fingerprintValue) && fingerprintValue > 0) {
+    await setStorageValues({ [lotKey]: fingerprintValue });
+    return fingerprintValue;
+  }
+
+  return null;
+}
+
+async function savePreferredTypeId(metadata: LotSearchMetadata, typeId: number): Promise<void> {
+  await setStorageValues({
+    [preferredTypeKeyForLot(metadata.lotUrl)]: typeId,
+    [preferredTypeKeyForFingerprint(metadata)]: typeId,
   });
 }
 
@@ -255,6 +314,113 @@ async function fetchBullionSpotFromApi(
     pricePerOunce: body.price,
     updatedAt: body.updatedAt,
   };
+}
+
+async function fetchTypeDetailsById(
+  apiKey: string,
+  typeId: number,
+  locale: string,
+): Promise<NumistaTypeDetails> {
+  return await fetchNumistaJson<NumistaTypeDetails>(`/types/${typeId}`, apiKey, {
+    lang: supportedNumistaLanguage(locale),
+  });
+}
+
+function currentUpdateState(source: 'api' | 'cache'): Pick<ExtensionUpdateState, 'currentVersion' | 'currentSha' | 'source'> {
+  return {
+    currentVersion: BUILD_INFO.version,
+    currentSha: BUILD_INFO.shortSha,
+    source,
+  };
+}
+
+function pickLatestRelease(releases: readonly GitHubReleaseResponseItem[]): UpdateReleaseSummary | null {
+  for (const release of releases) {
+    if (release.draft || !release.tag_name || !release.html_url) continue;
+
+    const parsed = parseReleaseTag(release.tag_name);
+    if (!parsed.version) continue;
+
+    return {
+      tagName: release.tag_name,
+      url: release.html_url,
+      publishedAt: release.published_at,
+      version: parsed.version,
+      shortSha: parsed.shortSha,
+    };
+  }
+
+  return null;
+}
+
+async function fetchLatestReleaseSummary(): Promise<UpdateReleaseSummary | null> {
+  const response = await fetch(GITHUB_RELEASES_API_URL, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`GitHub releases API failed: ${response.status}`);
+  }
+
+  const releases = await response.json() as readonly GitHubReleaseResponseItem[];
+  return pickLatestRelease(releases);
+}
+
+async function resolveExtensionUpdate(forceRefresh = false): Promise<ExtensionUpdateState> {
+  if (!forceRefresh) {
+    const cached = await getStorageValue<CachedExtensionUpdateState>(UPDATE_CHECK_CACHE_KEY);
+    if (cached && cached.expiresAt > Date.now()) {
+      return {
+        ...cached.result,
+        source: 'cache',
+      };
+    }
+  }
+
+  try {
+    const latest = await fetchLatestReleaseSummary();
+    const checkedAt = new Date().toISOString();
+    const result: ExtensionUpdateState = latest && isReleaseNewerThanBuild(latest)
+      ? {
+          ...currentUpdateState('api'),
+          status: 'update-available',
+          latestTag: latest.tagName,
+          latestVersion: latest.version,
+          latestSha: latest.shortSha,
+          url: latest.url,
+          publishedAt: latest.publishedAt,
+          checkedAt,
+        }
+      : {
+          ...currentUpdateState('api'),
+          status: 'up-to-date',
+          latestTag: latest?.tagName,
+          latestVersion: latest?.version,
+          latestSha: latest?.shortSha,
+          url: latest?.url ?? BUILD_INFO.releasesPageUrl,
+          publishedAt: latest?.publishedAt,
+          checkedAt,
+        };
+
+    await setStorageValues({
+      [UPDATE_CHECK_CACHE_KEY]: {
+        expiresAt: Date.now() + UPDATE_CHECK_TTL_MS,
+        result,
+      } satisfies CachedExtensionUpdateState,
+    });
+
+    return result;
+  } catch (error) {
+    return {
+      ...currentUpdateState('api'),
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Failed to check extension updates',
+      checkedAt: new Date().toISOString(),
+      url: BUILD_INFO.releasesPageUrl,
+    };
+  }
 }
 
 async function resolveBullionSpot(
@@ -412,15 +578,37 @@ async function resolveMatchingType(
 async function resolveNumistaMarketFromApi(
   apiKey: string,
   metadata: LotSearchMetadata,
+  preferredTypeId: number | null,
+  selectionSource: 'auto' | 'manual' | 'stored',
 ): Promise<NumistaMarketResult> {
   const searchQuery = metadata.query || buildFallbackSearchQuery(metadata.title) || metadata.title;
-  const matched = await resolveMatchingType(apiKey, metadata);
+  let effectiveSelectionSource = selectionSource;
+  const matched = await (async (): Promise<ResolvedTypeMatch> => {
+    if (preferredTypeId === null) {
+      return await resolveMatchingType(apiKey, metadata);
+    }
+
+    try {
+      return {
+        best: await fetchTypeDetailsById(apiKey, preferredTypeId, metadata.locale),
+        alternatives: [],
+      } satisfies ResolvedTypeMatch;
+    } catch (error) {
+      if (error instanceof NumistaApiError && error.status === 404) {
+        effectiveSelectionSource = 'auto';
+        return await resolveMatchingType(apiKey, metadata);
+      }
+
+      throw error;
+    }
+  })();
   const matchedType = matched.best;
 
   if (!matchedType) {
     return {
       status: 'no-match',
       source: 'api',
+      selectionSource: effectiveSelectionSource,
       searchQuery,
       year: metadata.year,
       alternatives: matched.alternatives,
@@ -436,6 +624,7 @@ async function resolveNumistaMarketFromApi(
     return {
       status: 'no-issue',
       source: 'api',
+      selectionSource: effectiveSelectionSource,
       searchQuery,
       title: matchedType.title,
       url: matchedType.url,
@@ -461,6 +650,7 @@ async function resolveNumistaMarketFromApi(
     return {
       status: 'no-prices',
       source: 'api',
+      selectionSource: effectiveSelectionSource,
       searchQuery,
       title: matchedType.title,
       url: matchedType.url,
@@ -476,6 +666,7 @@ async function resolveNumistaMarketFromApi(
   return {
     status: 'ok',
     source: 'api',
+    selectionSource: effectiveSelectionSource,
     searchQuery,
     title: matchedType.title,
     url: matchedType.url,
@@ -503,10 +694,13 @@ async function readCachedEntry(cacheKey: string): Promise<CachedNumistaMarketRes
   return entry;
 }
 
-async function loadCachedNumistaResult(metadata: LotSearchMetadata): Promise<NumistaMarketResult | null> {
+async function loadCachedNumistaResult(
+  metadata: LotSearchMetadata,
+  expectedTypeId: number | null = null,
+): Promise<NumistaMarketResult | null> {
   const lotKey = cacheKeyForLot(metadata.lotUrl);
   const lotEntry = await readCachedEntry(lotKey);
-  if (lotEntry) {
+  if (lotEntry && (expectedTypeId === null || lotEntry.result.typeId === expectedTypeId)) {
     return {
       ...lotEntry.result,
       source: 'cache',
@@ -517,7 +711,7 @@ async function loadCachedNumistaResult(metadata: LotSearchMetadata): Promise<Num
   if (fingerprintKey === lotKey) return null;
 
   const fingerprintEntry = await readCachedEntry(fingerprintKey);
-  if (!fingerprintEntry) return null;
+  if (!fingerprintEntry || (expectedTypeId !== null && fingerprintEntry.result.typeId !== expectedTypeId)) return null;
 
   await setStorageValues({ [lotKey]: fingerprintEntry });
   return {
@@ -647,10 +841,26 @@ async function resolveBullionValue(
 async function resolveNumistaMarket(
   metadata: LotSearchMetadata,
   forceRefresh = false,
+  requestPreferredTypeId: number | null = null,
 ): Promise<NumistaMarketResult> {
+  const storedPreferredTypeId = requestPreferredTypeId === null
+    ? await loadPreferredTypeId(metadata)
+    : null;
+  const preferredTypeId = requestPreferredTypeId ?? storedPreferredTypeId;
+  const selectionSource: NumistaMarketResult['selectionSource'] = requestPreferredTypeId !== null
+    ? 'manual'
+    : storedPreferredTypeId !== null
+      ? 'stored'
+      : 'auto';
+
   if (!forceRefresh) {
-    const cached = await loadCachedNumistaResult(metadata);
-    if (cached) return await enrichResultWithBullion(metadata, cached, false);
+    const cached = await loadCachedNumistaResult(metadata, preferredTypeId);
+    if (cached) {
+      return await enrichResultWithBullion(metadata, {
+        ...cached,
+        selectionSource: cached.selectionSource ?? selectionSource,
+      }, false);
+    }
   }
 
   const apiKey = await getStorageValue<string>(NUMISTA_API_KEY_STORAGE_KEY);
@@ -658,17 +868,22 @@ async function resolveNumistaMarket(
     return {
       status: 'needs-api-key',
       source: 'api',
+      selectionSource,
       searchQuery: metadata.query || metadata.title,
       year: metadata.year,
     };
   }
 
   try {
-    const result = await resolveNumistaMarketFromApi(apiKey, metadata);
+    const result = await resolveNumistaMarketFromApi(apiKey, metadata, preferredTypeId, selectionSource);
+    if (preferredTypeId !== null && result.typeId === preferredTypeId) {
+      await savePreferredTypeId(metadata, preferredTypeId);
+    }
     await saveCachedNumistaResult(metadata, result);
     const enriched = await enrichResultWithBullion(metadata, result, forceRefresh);
     return {
       ...enriched,
+      selectionSource,
       cachedAt: new Date().toISOString(),
     };
   } catch (error) {
@@ -677,6 +892,7 @@ async function resolveNumistaMarket(
       return {
         status: 'invalid-api-key',
         source: 'api',
+        selectionSource,
         searchQuery: metadata.query || metadata.title,
         year: metadata.year,
       };
@@ -685,6 +901,7 @@ async function resolveNumistaMarket(
     return {
       status: 'error',
       source: 'api',
+      selectionSource,
       searchQuery: metadata.query || metadata.title,
       year: metadata.year,
       message: error instanceof Error ? error.message : 'Unknown Numista error',
@@ -693,6 +910,21 @@ async function resolveNumistaMarket(
 }
 
 globalThis.chrome?.runtime?.onMessage.addListener((message, _sender, sendResponse) => {
+  if (isCheckExtensionUpdateRequest(message)) {
+    void resolveExtensionUpdate(message.forceRefresh)
+      .then((result) => {
+        sendResponse({ ok: true, result } satisfies CheckExtensionUpdateResponse);
+      })
+      .catch((error: unknown) => {
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : 'Failed to check extension updates',
+        } satisfies CheckExtensionUpdateResponse);
+      });
+
+    return true;
+  }
+
   if (isFetchLotHtmlRequest(message)) {
     void fetchLotHtml(message.lotUrl)
       .then((html) => {
@@ -726,7 +958,7 @@ globalThis.chrome?.runtime?.onMessage.addListener((message, _sender, sendRespons
   }
 
   if (isResolveNumistaMarketRequest(message)) {
-    void resolveNumistaMarket(message.metadata, message.forceRefresh)
+    void resolveNumistaMarket(message.metadata, message.forceRefresh, message.preferredTypeId ?? null)
       .then((result) => {
         sendResponse({ ok: true, result } satisfies ResolveNumistaMarketResponse);
       })

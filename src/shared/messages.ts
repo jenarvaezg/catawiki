@@ -1,4 +1,5 @@
 import type { BullionResolutionResult, LotSearchMetadata, NumistaMarketResult } from './numista';
+import type { ExtensionUpdateState } from './update';
 
 export interface FetchLotHtmlRequest {
   readonly type: 'fetch-lot-html';
@@ -14,6 +15,7 @@ export interface ResolveNumistaMarketRequest {
   readonly type: 'resolve-numista-market';
   readonly metadata: LotSearchMetadata;
   readonly forceRefresh?: boolean;
+  readonly preferredTypeId?: number;
 }
 
 export interface ResolveBullionValueRequest {
@@ -22,11 +24,17 @@ export interface ResolveBullionValueRequest {
   readonly forceRefresh?: boolean;
 }
 
+export interface CheckExtensionUpdateRequest {
+  readonly type: 'check-extension-update';
+  readonly forceRefresh?: boolean;
+}
+
 export type BackgroundRequest =
   | FetchLotHtmlRequest
   | SetNumistaApiKeyRequest
   | ResolveNumistaMarketRequest
-  | ResolveBullionValueRequest;
+  | ResolveBullionValueRequest
+  | CheckExtensionUpdateRequest;
 
 export type FetchLotHtmlResponse =
   | { readonly ok: true; readonly html: string }
@@ -42,6 +50,10 @@ export type ResolveNumistaMarketResponse =
 
 export type ResolveBullionValueResponse =
   | { readonly ok: true; readonly result: BullionResolutionResult }
+  | { readonly ok: false; readonly error: string };
+
+export type CheckExtensionUpdateResponse =
+  | { readonly ok: true; readonly result: ExtensionUpdateState }
   | { readonly ok: false; readonly error: string };
 
 export function isFetchLotHtmlRequest(message: unknown): message is FetchLotHtmlRequest {
@@ -70,4 +82,10 @@ export function isResolveBullionValueRequest(message: unknown): message is Resol
     && message !== null
     && (message as { type?: unknown }).type === 'resolve-bullion-value'
     && typeof (message as { metadata?: { lotUrl?: unknown } }).metadata?.lotUrl === 'string';
+}
+
+export function isCheckExtensionUpdateRequest(message: unknown): message is CheckExtensionUpdateRequest {
+  return typeof message === 'object'
+    && message !== null
+    && (message as { type?: unknown }).type === 'check-extension-update';
 }

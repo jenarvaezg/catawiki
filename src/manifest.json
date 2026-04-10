@@ -18,6 +18,6 @@
   "background": {
     "service_worker": "background.js"
   },
-  "host_permissions": ["*://*.catawiki.com/*", "https://api.numista.com/*", "https://api.gold-api.com/*"],
+  "host_permissions": ["*://*.catawiki.com/*", "https://api.numista.com/*", "https://api.gold-api.com/*", "https://api.github.com/*"],
   "permissions": ["storage"]
 }
