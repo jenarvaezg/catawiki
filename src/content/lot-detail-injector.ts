@@ -141,14 +141,51 @@ function injectQuickBidTotals(
   });
 }
 
+function findBidInputs(): HTMLInputElement[] {
+  // Primary: known input names
+  const byName = document.querySelectorAll<HTMLInputElement>(
+    'input[name="directBid"], input[name="maxBid"]',
+  );
+  if (byName.length > 0) return Array.from(byName);
+
+  // Fallback: number/text inputs inside bid-related containers
+  const bidSection = queryWithFallback(LOT_DETAIL.BID_SECTION);
+  if (!bidSection) return [];
+
+  return Array.from(
+    bidSection.querySelectorAll<HTMLInputElement>('input[type="number"], input[type="text"], input[inputmode="numeric"]'),
+  ).filter((input) => {
+    // Skip search fields and other unrelated inputs
+    const name = input.name.toLowerCase();
+    return !name.includes('search') && !name.includes('email');
+  });
+}
+
+function findBidInputRow(input: HTMLInputElement): Element | null {
+  // Primary: sentry component
+  const sentryRow = input.closest('[data-sentry-component="BidInputRow"]');
+  if (sentryRow) return sentryRow;
+
+  // Fallback: walk up to find a container that has the currency prefix
+  let candidate = input.parentElement;
+  for (let depth = 0; candidate && depth < 5; depth++) {
+    if (candidate.querySelector('[data-testid="text-field-prefix"]')) return candidate;
+    // Also check for a container with the € symbol near the input
+    const text = candidate.textContent?.trim() ?? '';
+    if (/^[€$£]/.test(text) && candidate.querySelector('input')) return candidate;
+    candidate = candidate.parentElement;
+  }
+
+  // Last resort: use the input's direct parent
+  return input.parentElement;
+}
+
 function setupBidInputListeners(
   shippingCost: number | null,
   commissionConfig: CommissionConfig | undefined,
   locale: string,
 ): void {
-  const inputs = document.querySelectorAll<HTMLInputElement>(
-    'input[name="directBid"], input[name="maxBid"]',
-  );
+  const inputs = findBidInputs();
 
   inputs.forEach((input) => {
     // Skip if already set up
@@ -156,7 +193,7 @@ function setupBidInputListeners(
     input.setAttribute(EXT_ATTR, 'bid-input-tracked');
 
     // Find the BidInputRow container to append the total label
-    const row = input.closest('[data-sentry-component="BidInputRow"]');
+    const row = findBidInputRow(input);
     if (!row) return;
 
     // Create the dynamic total label
