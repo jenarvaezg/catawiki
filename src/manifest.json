@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Catawiki Price Calculator",
-  "version": "0.1.0",
-  "description": "Shows the final total price (bid + commission + shipping) on Catawiki auction pages",
+  "name": "CoinScope",
+  "version": "0.2.0",
+  "description": "Shows total costs (price + fees + shipping) and market values on Catawiki and Wallapop",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
