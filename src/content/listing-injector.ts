@@ -303,7 +303,7 @@ function setFilteredVisibility(card: Element, hidden: boolean, platform: Platfor
 function removeIgnoredCard(card: Element, platform: Platform): void {
   const removeTarget = platform.getCardItemContainer(card);
   removeTarget.setAttribute('data-catawiki-ext-ignored', 'true');
-  removeTarget.remove();
+  removeTarget.style.setProperty('display', 'none', 'important');
 }
 
 function getStoredNumber(card: Element, datasetKey: string): number | null {

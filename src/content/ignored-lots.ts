@@ -31,7 +31,7 @@ function getDefaultLotUrl(lotId: string): string {
 function normalizeLotId(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const lotId = value.trim();
-  return /^\d+$/.test(lotId) ? lotId : null;
+  return lotId.length > 0 ? lotId : null;
 }
 
 function normalizeTitle(value: unknown, lotId: string): string {
