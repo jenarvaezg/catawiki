@@ -9,5 +9,5 @@ export const BUILD_INFO = {
   builtAt: typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : new Date(0).toISOString(),
   releasesPageUrl: typeof __RELEASES_PAGE_URL__ !== 'undefined'
     ? __RELEASES_PAGE_URL__
-    : 'https://github.com/jenarvaezg/catawiki/releases',
+    : 'https://github.com/jenarvaezg/coinscope/releases',
 } as const;

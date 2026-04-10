@@ -44,7 +44,7 @@ import {
 
 const NUMISTA_API_BASE_URL = 'https://api.numista.com/v3';
 const BULLION_SPOT_API_BASE_URL = 'https://api.gold-api.com/price';
-const GITHUB_RELEASES_API_URL = 'https://api.github.com/repos/jenarvaezg/catawiki/releases?per_page=5';
+const GITHUB_RELEASES_API_URL = 'https://api.github.com/repos/jenarvaezg/coinscope/releases?per_page=5';
 const NUMISTA_API_KEY_STORAGE_KEY = 'numista.apiKey';
 const NUMISTA_CACHE_PREFIX = 'numista.market.v7:';
 const NUMISTA_PREFERRED_TYPE_PREFIX = 'numista.preferred-type.v1:';

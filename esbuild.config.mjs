@@ -38,7 +38,7 @@ const buildOptions = {
     __EXT_VERSION__: JSON.stringify(packageJson.version),
     __BUILD_SHA__: JSON.stringify(buildSha),
     __BUILD_TIMESTAMP__: JSON.stringify(buildTimestamp),
-    __RELEASES_PAGE_URL__: JSON.stringify('https://github.com/jenarvaezg/catawiki/releases'),
+    __RELEASES_PAGE_URL__: JSON.stringify('https://github.com/jenarvaezg/coinscope/releases'),
   },
 };
 

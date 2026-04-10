@@ -1,6 +1,6 @@
 {
-  "name": "catawiki-price-calculator",
-  "version": "0.2.0",
+  "name": "coinscope",
+  "version": "0.2.1",
   "description": "Browser extension that shows the final total price on Catawiki auction pages",
   "private": true,
   "scripts": {
