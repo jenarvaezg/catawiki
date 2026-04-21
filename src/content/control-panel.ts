@@ -2,6 +2,7 @@ import type { Platform } from '../platforms/platform';
 import { detectLocale, getLabel } from './i18n';
 import { getListingFilters, resetListingFilters, setListingFilters, type ListingFilters } from './listing-filters';
 import { getIgnoredLots, unignoreLot, type IgnoredLotEntry } from './ignored-lots';
+import { addBidder, getBidderMapping, removeBidder, type BidderMapping } from './bidder-mapping';
 import { updateListingTotals } from './listing-injector';
 import { BUILD_INFO } from '../shared/build-info';
 import {
@@ -14,7 +15,7 @@ import {
   createExtElement,
 } from './styles';
 
-type Tab = 'filters' | 'ignored' | 'settings';
+type Tab = 'filters' | 'ignored' | 'bidders' | 'settings';
 
 let panelOpen = false;
 let activeTab: Tab = 'filters';
@@ -35,7 +36,8 @@ function ensureStorageListener(): void {
     const relevant =
       'listingFilters.v1' in changes
       || 'ignoredLots.v2' in changes
-      || 'ignoredLotIds.v1' in changes;
+      || 'ignoredLotIds.v1' in changes
+      || 'bidderMapping.v1' in changes;
 
     if (!relevant) return;
 
@@ -159,7 +161,7 @@ function createFAB(filterCount: number, ignoredCount: number): HTMLElement {
 
 // --- Tabs ---
 
-function createTabBar(locale: string): HTMLElement {
+function createTabBar(locale: string, platform: Platform | null): HTMLElement {
   const bar = document.createElement('div');
   applyStyles(bar, {
     display: 'flex',
@@ -171,8 +173,13 @@ function createTabBar(locale: string): HTMLElement {
   const tabs: { id: Tab; label: string }[] = [
     { id: 'filters', label: getLabel('listing_filters_manage', locale) },
     { id: 'ignored', label: getLabel('ignored_lots_manage', locale) },
-    { id: 'settings', label: 'Info' },
   ];
+
+  if (platform?.id === 'catawiki') {
+    tabs.push({ id: 'bidders', label: getLabel('bidders_manage', locale) });
+  }
+
+  tabs.push({ id: 'settings', label: 'Info' });
 
   tabs.forEach(({ id, label }) => {
     const tab = document.createElement('button');
@@ -357,6 +364,157 @@ function createIgnoredTab(lots: readonly IgnoredLotEntry[], locale: string): HTM
   return container;
 }
 
+// --- Bidders tab ---
+
+function createBiddersTab(mapping: BidderMapping, locale: string): HTMLElement {
+  const container = document.createElement('div');
+
+  const hint = document.createElement('span');
+  applyStyles(hint, BREAKDOWN_STYLES);
+  hint.textContent = getLabel('bidders_hint', locale);
+  container.appendChild(hint);
+
+  // Add form: ID + name + submit
+  const form = document.createElement('form');
+  applyStyles(form, {
+    display: 'flex',
+    gap: '6px',
+    marginTop: '10px',
+    alignItems: 'stretch',
+  });
+
+  const idInput = document.createElement('input');
+  idInput.type = 'text';
+  idInput.inputMode = 'numeric';
+  idInput.placeholder = getLabel('bidders_id_placeholder', locale);
+  applyStyles(idInput, {
+    flex: '0 0 96px',
+    height: '34px',
+    padding: '0 10px',
+    border: '1px solid #D0D0D0',
+    borderRadius: '8px',
+    fontSize: '12px',
+    color: '#1A1A1A',
+    backgroundColor: '#FFFFFF',
+  });
+  form.appendChild(idInput);
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.placeholder = getLabel('bidders_name_placeholder', locale);
+  applyStyles(nameInput, {
+    flex: '1 1 auto',
+    minWidth: '0',
+    height: '34px',
+    padding: '0 10px',
+    border: '1px solid #D0D0D0',
+    borderRadius: '8px',
+    fontSize: '12px',
+    color: '#1A1A1A',
+    backgroundColor: '#FFFFFF',
+  });
+  form.appendChild(nameInput);
+
+  const submit = document.createElement('button');
+  submit.type = 'submit';
+  submit.textContent = getLabel('bidders_add', locale);
+  applyStyles(submit, {
+    ...ACTION_BUTTON_STYLES,
+    marginTop: '0',
+    padding: '0 12px',
+    fontSize: '11px',
+    whiteSpace: 'nowrap',
+  });
+  form.appendChild(submit);
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const idValue = idInput.value;
+    const nameValue = nameInput.value;
+    if (idValue.trim() === '' || nameValue.trim() === '') return;
+    submit.disabled = true;
+    void addBidder(idValue, nameValue).finally(() => {
+      idInput.value = '';
+      nameInput.value = '';
+      submit.disabled = false;
+      idInput.focus();
+    });
+  });
+
+  container.appendChild(form);
+
+  // Own ID hint
+  const ownIdHint = document.createElement('span');
+  applyStyles(ownIdHint, { ...BREAKDOWN_STYLES, marginTop: '8px' });
+  ownIdHint.textContent = getLabel('bidders_own_id_hint', locale);
+  container.appendChild(ownIdHint);
+
+  // Mapped list
+  const entries = Object.entries(mapping).sort(([, a], [, b]) => a.localeCompare(b));
+
+  if (entries.length === 0) {
+    const empty = document.createElement('div');
+    applyStyles(empty, { ...BREAKDOWN_STYLES, marginTop: '12px' });
+    empty.textContent = getLabel('bidders_empty', locale);
+    container.appendChild(empty);
+    return container;
+  }
+
+  const list = document.createElement('div');
+  applyStyles(list, {
+    display: 'flex',
+    flexDirection: 'column',
+    marginTop: '12px',
+  });
+  container.appendChild(list);
+
+  entries.forEach(([id, name]) => {
+    const row = document.createElement('div');
+    applyStyles(row, {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '8px 0',
+      borderTop: '1px solid #EEEEEE',
+    });
+
+    const nameEl = document.createElement('span');
+    applyStyles(nameEl, {
+      flex: '1 1 auto',
+      fontSize: '12px',
+      fontWeight: '700',
+      color: '#1A1A1A',
+    });
+    nameEl.textContent = name;
+    row.appendChild(nameEl);
+
+    const idEl = document.createElement('span');
+    applyStyles(idEl, {
+      fontSize: '11px',
+      color: '#888',
+      fontFamily: 'monospace',
+    });
+    idEl.textContent = `#${id}`;
+    row.appendChild(idEl);
+
+    const removeButton = createButton(getLabel('bidders_remove', locale), {
+      border: '1px solid #D0D0D0',
+      color: '#666',
+    });
+    removeButton.addEventListener('click', () => {
+      removeButton.disabled = true;
+      void removeBidder(id).catch(() => {
+        removeButton.disabled = false;
+      });
+    });
+    row.appendChild(removeButton);
+
+    list.appendChild(row);
+  });
+
+  return container;
+}
+
 // --- Settings tab ---
 
 function createSettingsTab(platform: Platform | null, locale: string): HTMLElement {
@@ -464,11 +622,21 @@ async function renderPanel(): Promise<void> {
 
   let filters: ListingFilters = { maxEstimatedTotal: null, maxShipping: null, onlyNoReserve: false };
   let ignoredLots: readonly IgnoredLotEntry[] = [];
+  let bidderMapping: BidderMapping = {};
 
   try {
-    [filters, ignoredLots] = await Promise.all([getListingFilters(), getIgnoredLots()]);
+    [filters, ignoredLots, bidderMapping] = await Promise.all([
+      getListingFilters(),
+      getIgnoredLots(),
+      getBidderMapping(),
+    ]);
   } catch {
     // Continue with defaults
+  }
+
+  // If the bidders tab is active but not valid for this platform, fall back
+  if (activeTab === 'bidders' && currentPlatform?.id !== 'catawiki') {
+    activeTab = 'filters';
   }
 
   const filterCount = countActiveFilters(filters);
@@ -535,13 +703,15 @@ async function renderPanel(): Promise<void> {
   panel.appendChild(header);
 
   // Tab bar
-  panel.appendChild(createTabBar(locale));
+  panel.appendChild(createTabBar(locale, currentPlatform));
 
   // Tab content
   if (activeTab === 'filters') {
     panel.appendChild(createFiltersTab(filters, locale));
   } else if (activeTab === 'ignored') {
     panel.appendChild(createIgnoredTab(ignoredLots, locale));
+  } else if (activeTab === 'bidders') {
+    panel.appendChild(createBiddersTab(bidderMapping, locale));
   } else if (activeTab === 'settings') {
     panel.appendChild(createSettingsTab(currentPlatform, locale));
   }

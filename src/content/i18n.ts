@@ -48,6 +48,15 @@ type LabelKey =
   | 'listing_filters_max_shipping'
   | 'listing_filters_reset'
   | 'listing_filters_hint'
+  | 'bidders_manage'
+  | 'bidders_title'
+  | 'bidders_empty'
+  | 'bidders_add'
+  | 'bidders_remove'
+  | 'bidders_id_placeholder'
+  | 'bidders_name_placeholder'
+  | 'bidders_hint'
+  | 'bidders_own_id_hint'
   | 'update_available'
   | 'update_open_release'
   | 'update_dismiss'
@@ -104,6 +113,15 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     listing_filters_max_shipping: 'Max shipping',
     listing_filters_reset: 'Reset filters',
     listing_filters_hint: 'Applies to listing cards and related lots on detail pages.',
+    bidders_manage: 'Bidders',
+    bidders_title: 'Bidder names',
+    bidders_empty: 'No bidders mapped yet.',
+    bidders_add: 'Add',
+    bidders_remove: 'Remove',
+    bidders_id_placeholder: 'ID (e.g. 2943)',
+    bidders_name_placeholder: 'Name',
+    bidders_hint: 'Show a friendly name next to the anonymous bidder IDs on Catawiki lots.',
+    bidders_own_id_hint: 'Your own bidder ID appears next to your bid after you place one on a lot.',
     update_available: 'Extension update available',
     update_open_release: 'Open release',
     update_dismiss: 'Dismiss',
@@ -159,6 +177,15 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     listing_filters_max_shipping: 'Envío máximo',
     listing_filters_reset: 'Resetear filtros',
     listing_filters_hint: 'Se aplica a listados y a lotes relacionados en la ficha.',
+    bidders_manage: 'Pujadores',
+    bidders_title: 'Nombres de pujadores',
+    bidders_empty: 'Aún no hay pujadores mapeados.',
+    bidders_add: 'Añadir',
+    bidders_remove: 'Eliminar',
+    bidders_id_placeholder: 'ID (p. ej. 2943)',
+    bidders_name_placeholder: 'Nombre',
+    bidders_hint: 'Muestra un nombre reconocible junto a los IDs anónimos de los pujadores de Catawiki.',
+    bidders_own_id_hint: 'Tu propio ID de pujador aparece junto a tu puja después de pujar en un lote.',
     update_available: 'Hay una actualización de la extensión',
     update_open_release: 'Abrir release',
     update_dismiss: 'Ocultar',
@@ -214,6 +241,15 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     listing_filters_max_shipping: 'Max. Versand',
     listing_filters_reset: 'Filter zurücksetzen',
     listing_filters_hint: 'Gilt für Listen und verwandte Lose auf Detailseiten.',
+    bidders_manage: 'Bieter',
+    bidders_title: 'Bieternamen',
+    bidders_empty: 'Noch keine Bieter zugeordnet.',
+    bidders_add: 'Hinzufügen',
+    bidders_remove: 'Entfernen',
+    bidders_id_placeholder: 'ID (z. B. 2943)',
+    bidders_name_placeholder: 'Name',
+    bidders_hint: 'Zeigt einen erkennbaren Namen neben den anonymen Bieter-IDs auf Catawiki-Losen an.',
+    bidders_own_id_hint: 'Deine eigene Bieter-ID erscheint neben deinem Gebot, sobald du auf ein Los bietest.',
     update_available: 'Erweiterungs-Update verfügbar',
     update_open_release: 'Release öffnen',
     update_dismiss: 'Ausblenden',
@@ -269,6 +305,15 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     listing_filters_max_shipping: 'Livraison max',
     listing_filters_reset: 'Réinitialiser les filtres',
     listing_filters_hint: 'S’applique aux listes et aux lots liés sur la fiche.',
+    bidders_manage: 'Enchérisseurs',
+    bidders_title: 'Noms des enchérisseurs',
+    bidders_empty: 'Aucun enchérisseur associé pour le moment.',
+    bidders_add: 'Ajouter',
+    bidders_remove: 'Supprimer',
+    bidders_id_placeholder: 'ID (par ex. 2943)',
+    bidders_name_placeholder: 'Nom',
+    bidders_hint: 'Affiche un nom reconnaissable à côté des IDs anonymes des enchérisseurs Catawiki.',
+    bidders_own_id_hint: 'Votre propre ID d’enchérisseur apparaît à côté de votre enchère après avoir enchéri sur un lot.',
     update_available: 'Une mise à jour de l’extension est disponible',
     update_open_release: 'Ouvrir la release',
     update_dismiss: 'Masquer',
@@ -324,6 +369,15 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     listing_filters_max_shipping: 'Max. verzending',
     listing_filters_reset: 'Filters resetten',
     listing_filters_hint: 'Geldt voor lijsten en gerelateerde kavels op detailpagina’s.',
+    bidders_manage: 'Bieders',
+    bidders_title: 'Biedernamen',
+    bidders_empty: 'Nog geen bieders gekoppeld.',
+    bidders_add: 'Toevoegen',
+    bidders_remove: 'Verwijderen',
+    bidders_id_placeholder: 'ID (bijv. 2943)',
+    bidders_name_placeholder: 'Naam',
+    bidders_hint: 'Toont een herkenbare naam naast de anonieme bieder-ID’s op Catawiki-kavels.',
+    bidders_own_id_hint: 'Je eigen bieder-ID verschijnt naast je bod nadat je op een kavel hebt geboden.',
     update_available: 'Er is een extensie-update beschikbaar',
     update_open_release: 'Release openen',
     update_dismiss: 'Verbergen',

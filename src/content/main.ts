@@ -12,6 +12,7 @@ import {
 } from './mutation-observer';
 import { EXT_ATTR } from './styles';
 import { injectUpdateNotifier } from './update-notifier';
+import { startBidderLabelObserver } from './bidder-label-injector';
 import { detectPlatform } from '../platforms/registry';
 import type { Platform } from '../platforms/platform';
 
@@ -39,6 +40,13 @@ function init(): void {
       removeOldPanels();
       injectControlPanel(currentPlatform);
       void injectUpdateNotifier();
+    }
+
+    if (currentPlatform.id === 'catawiki') {
+      // Globally observes bidder labels (e.g. "Pujador 2943") and replaces
+      // them with user-defined friendly names. Runs once; observer survives SPA
+      // navigations so cleanupAll does not tear it down.
+      startBidderLabelObserver();
     }
 
     if (pageType === 'lot-detail') {
