@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeIgnoredLotIds, normalizeIgnoredLots, shouldHideIgnoredLot } from './ignored-lots';
+import {
+  IGNORED_LOT_TTL_DAYS,
+  normalizeIgnoredLotIds,
+  normalizeIgnoredLots,
+  pruneExpiredIgnoredLots,
+  shouldHideIgnoredLot,
+} from './ignored-lots';
 
 describe('ignored lots', () => {
   it('normalizes stored lot ids and removes duplicates', () => {
@@ -33,5 +39,27 @@ describe('ignored lots', () => {
     expect(shouldHideIgnoredLot('102617066', ignoredIds)).toBe(true);
     expect(shouldHideIgnoredLot('999999999', ignoredIds)).toBe(false);
     expect(shouldHideIgnoredLot(null, ignoredIds)).toBe(false);
+  });
+
+  it('prunes ignored lots older than the TTL and keeps fresh ones', () => {
+    const now = Date.parse('2026-04-21T12:00:00.000Z');
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    const freshAt = new Date(now - 3 * oneDayMs).toISOString();
+    const borderlineAt = new Date(now - IGNORED_LOT_TTL_DAYS * oneDayMs).toISOString();
+    const expiredAt = new Date(now - (IGNORED_LOT_TTL_DAYS + 1) * oneDayMs).toISOString();
+    const legacyAt = new Date(0).toISOString();
+
+    const entries = normalizeIgnoredLots([
+      { lotId: 'fresh', ignoredAt: freshAt },
+      { lotId: 'edge', ignoredAt: borderlineAt },
+      { lotId: 'expired', ignoredAt: expiredAt },
+      'legacy',
+    ]);
+
+    // legacy entries get epoch timestamps via normalizeIgnoredLots
+    expect(entries.find((e) => e.lotId === 'legacy')?.ignoredAt).toBe(legacyAt);
+
+    const pruned = pruneExpiredIgnoredLots(entries, now).map((entry) => entry.lotId).sort();
+    expect(pruned).toEqual(['edge', 'fresh']);
   });
 });

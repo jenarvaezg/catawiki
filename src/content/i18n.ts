@@ -41,6 +41,7 @@ type LabelKey =
   | 'ignored_lots_restore'
   | 'ignored_lots_open'
   | 'ignored_lots_reload_hint'
+  | 'ignored_lots_ttl_hint'
   | 'listing_filters_manage'
   | 'listing_filters_title'
   | 'listing_filters_only_no_reserve'
@@ -106,6 +107,7 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     ignored_lots_restore: 'Restore',
     ignored_lots_open: 'Open',
     ignored_lots_reload_hint: 'Restored lots will appear again after reloading the page.',
+    ignored_lots_ttl_hint: 'Ignored lots expire automatically after 2 weeks.',
     listing_filters_manage: 'Filters',
     listing_filters_title: 'Listing filters',
     listing_filters_only_no_reserve: 'Only no-reserve lots',
@@ -170,6 +172,7 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     ignored_lots_restore: 'Restaurar',
     ignored_lots_open: 'Abrir',
     ignored_lots_reload_hint: 'Los lotes restaurados volverán a salir al recargar la página.',
+    ignored_lots_ttl_hint: 'Los lotes ignorados caducan automáticamente a las 2 semanas.',
     listing_filters_manage: 'Filtros',
     listing_filters_title: 'Filtros de listado',
     listing_filters_only_no_reserve: 'Sólo lotes sin reserva',
@@ -234,6 +237,7 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     ignored_lots_restore: 'Wiederherstellen',
     ignored_lots_open: 'Öffnen',
     ignored_lots_reload_hint: 'Wiederhergestellte Lose erscheinen nach dem Neuladen der Seite wieder.',
+    ignored_lots_ttl_hint: 'Ignorierte Lose verfallen automatisch nach 2 Wochen.',
     listing_filters_manage: 'Filter',
     listing_filters_title: 'Listenfilter',
     listing_filters_only_no_reserve: 'Nur Lose ohne Mindestpreis',
@@ -298,6 +302,7 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     ignored_lots_restore: 'Restaurer',
     ignored_lots_open: 'Ouvrir',
     ignored_lots_reload_hint: 'Les lots restaurés réapparaîtront après rechargement de la page.',
+    ignored_lots_ttl_hint: 'Les lots ignorés expirent automatiquement au bout de 2 semaines.',
     listing_filters_manage: 'Filtres',
     listing_filters_title: 'Filtres de liste',
     listing_filters_only_no_reserve: 'Seulement les lots sans réserve',
@@ -362,6 +367,7 @@ const LABELS: Record<string, Record<LabelKey, string>> = {
     ignored_lots_restore: 'Herstellen',
     ignored_lots_open: 'Openen',
     ignored_lots_reload_hint: 'Herstelde kavels verschijnen weer nadat je de pagina herlaadt.',
+    ignored_lots_ttl_hint: 'Genegeerde kavels verlopen automatisch na 2 weken.',
     listing_filters_manage: 'Filters',
     listing_filters_title: 'Lijstfilters',
     listing_filters_only_no_reserve: 'Alleen kavels zonder minimumprijs',

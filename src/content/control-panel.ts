@@ -285,16 +285,21 @@ function createFiltersTab(filters: ListingFilters, locale: string): HTMLElement 
 function createIgnoredTab(lots: readonly IgnoredLotEntry[], locale: string): HTMLElement {
   const container = document.createElement('div');
 
+  const ttlHint = document.createElement('span');
+  applyStyles(ttlHint, BREAKDOWN_STYLES);
+  ttlHint.textContent = getLabel('ignored_lots_ttl_hint', locale);
+  container.appendChild(ttlHint);
+
   if (lots.length === 0) {
     const empty = document.createElement('div');
-    applyStyles(empty, BREAKDOWN_STYLES);
+    applyStyles(empty, { ...BREAKDOWN_STYLES, marginTop: '8px' });
     empty.textContent = getLabel('ignored_lots_empty', locale);
     container.appendChild(empty);
     return container;
   }
 
   const hint = document.createElement('span');
-  applyStyles(hint, BREAKDOWN_STYLES);
+  applyStyles(hint, { ...BREAKDOWN_STYLES, marginTop: '4px' });
   hint.textContent = getLabel('ignored_lots_reload_hint', locale);
   container.appendChild(hint);
 

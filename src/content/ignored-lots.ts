@@ -1,6 +1,9 @@
 const IGNORED_LOTS_KEY = 'ignoredLots.v2';
 const LEGACY_IGNORED_LOT_IDS_KEY = 'ignoredLotIds.v1';
 
+export const IGNORED_LOT_TTL_DAYS = 14;
+const IGNORED_LOT_TTL_MS = IGNORED_LOT_TTL_DAYS * 24 * 60 * 60 * 1000;
+
 export interface IgnoredLotEntry {
   readonly lotId: string;
   readonly lotUrl: string;
@@ -114,6 +117,17 @@ export function shouldHideIgnoredLot(lotId: string | null, ignoredIds: ReadonlyS
   return lotId !== null && ignoredIds.has(lotId);
 }
 
+export function pruneExpiredIgnoredLots(
+  entries: readonly IgnoredLotEntry[],
+  now: number = Date.now(),
+): IgnoredLotEntry[] {
+  return entries.filter((entry) => {
+    const ignoredAtMs = Date.parse(entry.ignoredAt);
+    if (!Number.isFinite(ignoredAtMs)) return false;
+    return now - ignoredAtMs <= IGNORED_LOT_TTL_MS;
+  });
+}
+
 function installStorageSync(): void {
   if (storageSyncInstalled) return;
 
@@ -131,7 +145,7 @@ function installStorageSync(): void {
       return;
     }
 
-    ignoredLots = normalizeIgnoredLots(nextValue);
+    ignoredLots = pruneExpiredIgnoredLots(normalizeIgnoredLots(nextValue));
     ignoredLotsPromise = Promise.resolve(ignoredLots);
   });
 
@@ -208,19 +222,23 @@ export function getIgnoredLots(): Promise<readonly IgnoredLotEntry[]> {
   const loadPromise = getStorageValues<Record<string, unknown>>([IGNORED_LOTS_KEY, LEGACY_IGNORED_LOT_IDS_KEY])
     .then(async (items) => {
       const storedLots = Array.isArray(items[IGNORED_LOTS_KEY]) ? items[IGNORED_LOTS_KEY] as readonly unknown[] : null;
+      const legacyRaw = Array.isArray(items[LEGACY_IGNORED_LOT_IDS_KEY])
+        ? items[LEGACY_IGNORED_LOT_IDS_KEY] as readonly unknown[]
+        : null;
+
+      const loaded = storedLots
+        ? normalizeIgnoredLots(storedLots)
+        : (legacyRaw ? normalizeIgnoredLots(legacyRaw) : []);
+
+      const pruned = pruneExpiredIgnoredLots(loaded);
+      ignoredLots = pruned;
+
       if (storedLots) {
-        ignoredLots = normalizeIgnoredLots(storedLots);
-        return ignoredLots;
-      }
-
-      const legacyLots = Array.isArray(items[LEGACY_IGNORED_LOT_IDS_KEY])
-        ? normalizeIgnoredLots(items[LEGACY_IGNORED_LOT_IDS_KEY] as readonly unknown[])
-        : [];
-
-      ignoredLots = legacyLots;
-
-      if (legacyLots.length > 0) {
-        await setStorageValues({ [IGNORED_LOTS_KEY]: legacyLots });
+        if (pruned.length !== loaded.length) {
+          await setStorageValues({ [IGNORED_LOTS_KEY]: pruned });
+        }
+      } else if (legacyRaw) {
+        await setStorageValues({ [IGNORED_LOTS_KEY]: pruned });
         await removeStorageValue(LEGACY_IGNORED_LOT_IDS_KEY);
       }
 
